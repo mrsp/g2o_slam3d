@@ -4,7 +4,7 @@ project( g2o_icp_ba )
 set( CMAKE_BUILD_TYPE Release )
 set( CMAKE_CXX_FLAGS "-std=c++11 -Wall -O2 -march=native" )
 
-#list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules )
+list( APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules )
 
 find_package( G2O REQUIRED )
 find_package( OpenCV REQUIRED )
@@ -16,4 +16,6 @@ include_directories( ${EIGEN3_INCLUDE_DIR} ${CHOLMOD_INCLUDE_DIR} )
 add_executable( icp_ba icp_ba.cpp )
 target_link_libraries( icp_ba 
     ${OpenCV_LIBS}
-    g2o_core g2o_types_slam3d g2o_solver_csparse g2o_stuff g2o_csparse_extension g2o_types_sba ${CHOLMOD_LIBRARIES})
+    g2o_core g2o_types_slam3d g2o_solver_csparse g2o_stuff g2o_csparse_extension g2o_types_sba
+    ${CHOLMOD_LIBRARIES}
+    )

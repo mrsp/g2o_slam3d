@@ -1,10 +1,14 @@
 // for std
 #include <iostream>
 // for opencv 
-#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/features2d/features2d.hpp>
-#include <boost/concept_check.hpp>
+#ifdef USE_CONTRIB
+#include <opencv2/xfeatures2d/nonfree.hpp>
+#include <opencv2/xfeatures2d.hpp>
+#endif
 // for g2o
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/core/block_solver.h>
@@ -49,13 +53,16 @@ int main( int argc, char** argv )
     // Setup g2o
     g2o::SparseOptimizer    optimizer;
     // use Cholmod
-    g2o::BlockSolver_6_3::LinearSolverType* linearSolver = new  g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType> ();
-    // 6*3 Solver
-    g2o::BlockSolver_6_3* block_solver = new g2o::BlockSolver_6_3( linearSolver );
-    // L-M Optimization
-    g2o::OptimizationAlgorithmLevenberg* algorithm = new g2o::OptimizationAlgorithmLevenberg( block_solver );
+    std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver;
+    // if(_isDense)
+    //     linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
+    // else
+         linearSolver = g2o::make_unique<g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>>();
     
-    optimizer.setAlgorithm( algorithm );
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(
+        g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)) );
+  
+    optimizer.setAlgorithm(solver);
     optimizer.setVerbose( false );
     
     // vertices == nodes 
@@ -155,11 +162,12 @@ int main( int argc, char** argv )
 
 int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vector<cv::Point2f>& points1, vector<cv::Point2f>& points2 )
 {
-    cv::ORB orb;
+    cv::Ptr<cv::Feature2D> fdetector  = cv::ORB::create(500);
+
     vector<cv::KeyPoint> kp1, kp2;
     cv::Mat desp1, desp2;
-    orb( img1, cv::Mat(), kp1, desp1 );
-    orb( img2, cv::Mat(), kp2, desp2 );
+    fdetector->detectAndCompute( img1, cv::Mat(), kp1, desp1 );
+    fdetector->detectAndCompute( img2, cv::Mat(), kp2, desp2 );
     
     cv::Ptr<cv::DescriptorMatcher>  matcher = cv::DescriptorMatcher::create( "BruteForce-Hamming");
     
