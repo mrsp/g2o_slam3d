@@ -22,7 +22,7 @@
 
 using namespace std;
 
-int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2);
+int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint>& kp1, vector<cv::KeyPoint>& kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches);
 
 //Xtion parameters
 double cx = 319.5;
@@ -42,16 +42,29 @@ int main(int argc, char **argv)
     cv::Mat img1 = cv::imread(argv[1], 0);
     cv::Mat img2 = cv::imread(argv[2], 0);
 
-    int k = cv::waitKey(0);
     // Keypoints placeholder
     vector<cv::Point2f> pts1, pts2;
-    if (findCorrespondingPoints(img1, img2, pts1, pts2) == false)
+    vector<cv::DMatch> corr;
+    vector<cv::KeyPoint> kpts1,  kpts2;
+    if (findCorrespondingPoints(img1, img2, kpts1, kpts2, pts1, pts2, corr) == false)
     {
         cout << "no matches found" << endl;
         return 0;
     }
-    cout << "Found " << pts1.size() << " matches" << endl;
 
+    cout << "Found " << corr.size() << " matches" << endl;
+    cv::Mat img_matched;
+	cv::drawMatches( img1, kpts1, 
+                    img2, kpts2, 
+                    corr, img_matched, 
+                    cv::Scalar::all(-1),
+                    cv::Scalar::all(-1),
+                    std::vector<char>(),
+                    cv::DrawMatchesFlags::DEFAULT);
+
+
+    cv::imshow("Knn Matches found", img_matched);
+    cv::waitKey(0);
     g2o::SparseOptimizer optimizer;
 
     //Now g2o uses c++11 smart pointer instead of raw pointer
@@ -161,11 +174,10 @@ int main(int argc, char **argv)
     return 0;
 }
 
-int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2)
+int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2,vector<cv::KeyPoint>& kp1, vector<cv::KeyPoint>& kp2,  vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches)
 {
     cv::Ptr<cv::Feature2D> fdetector = cv::ORB::create(5000);
 
-    vector<cv::KeyPoint> kp1, kp2;
     cv::Mat desp1, desp2;
     fdetector->detectAndCompute(img1, cv::Mat(), kp1, desp1);
     fdetector->detectAndCompute(img2, cv::Mat(), kp2, desp2);
@@ -175,7 +187,6 @@ int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv:
     double knn_match_ratio = 0.8;
     vector<vector<cv::DMatch>> matches_knn;
     matcher->knnMatch(desp1, desp2, matches_knn, 2);
-    vector<cv::DMatch> matches;
     for (size_t i = 0; i < matches_knn.size(); i++)
     {
         if (matches_knn[i][0].distance < knn_match_ratio * matches_knn[i][1].distance)
