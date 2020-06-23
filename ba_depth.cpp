@@ -57,13 +57,11 @@ int main(int argc, char **argv)
 
     cv::Mat depth1 = cv::imread(argv[3], cv::IMREAD_ANYDEPTH);
     cv::Mat depth2 = cv::imread(argv[4], cv::IMREAD_ANYDEPTH);
-
-
-
+ 
     imdepthshow(depth1);
     imdepthshow(depth2);
-    depth1.convertTo(depth1, CV_32F,1.0);
-    depth2.convertTo(depth1, CV_32F,1.0);
+    depth1.convertTo(depth1, CV_32F,0.001);
+    depth2.convertTo(depth1, CV_32F,0.001);
 
     int num_images = 2;
     // Keypoints placeholder
@@ -121,11 +119,11 @@ int main(int argc, char **argv)
         v->setId(num_images + i);
         //Pinhole model to set Initial Point Estimate
         double z = depth1.at<float>(cvRound(pts1[i].x),cvRound(pts1[i].y));
-        if(z<0.01 || z>5.0)
-            z=2.5;
-
-        z=1;
         cout<<"Depth at "<<cvRound(pts1[i].x)<<" "<<cvRound(pts1[i].y)<<" is "<<z<<endl;
+
+        if(z<0.01 || z>5.0 || z!=z)
+           z=1.0;
+
         double x = (pts1[i].x - cx) * z / fx;
         double y = (pts1[i].y - cy) * z / fy;
         v->setMarginalized(true);
