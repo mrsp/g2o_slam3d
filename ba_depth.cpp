@@ -24,23 +24,47 @@ using namespace std;
 
 int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint>& kp1, vector<cv::KeyPoint>& kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches);
 
+void imdepthshow(cv::Mat map);
+
 //Xtion parameters
 double cx = 319.5;
 double cy = 239.5;
 double fx = 570.3422241210938;
 double fy = 570.3422241210938;
 
+//Intel parameters
+// double cx = 317.23138427734375;
+// double cy = 252.4551239013672;
+// double fx = 612.3971557617188;
+// double fy = 612.1465454101562;
+
+
+
+
+
+
 int main(int argc, char **argv)
 {
-    if (argc != 3)
+    if (argc != 5)
     {
-        cout << "Usage: icp_ba img1, img2" << endl;
+        cout << "Usage: icp_ba img1, img2 detph1 depth2" << endl;
         return 0;
     }
 
     // Read the two input images and convert to grayscale
-    cv::Mat img1 = cv::imread(argv[1], 0);
-    cv::Mat img2 = cv::imread(argv[2], 0);
+    cv::Mat img1 = cv::imread(argv[1], cv::IMREAD_GRAYSCALE);
+    cv::Mat img2 = cv::imread(argv[2], cv::IMREAD_GRAYSCALE);
+
+    cv::Mat depth1 = cv::imread(argv[3], cv::IMREAD_ANYDEPTH);
+    cv::Mat depth2 = cv::imread(argv[4], cv::IMREAD_ANYDEPTH);
+
+
+
+    imdepthshow(depth1);
+    imdepthshow(depth2);
+    depth1.convertTo(depth1, CV_32F,1.0);
+    depth2.convertTo(depth1, CV_32F,1.0);
+
     int num_images = 2;
     // Keypoints placeholder
     vector<cv::Point2f> pts1, pts2;
@@ -94,9 +118,14 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < pts1.size(); i++)
     {
         g2o::VertexSBAPointXYZ *v = new g2o::VertexSBAPointXYZ();
-        v->setId(2 + i);
+        v->setId(num_images + i);
         //Pinhole model to set Initial Point Estimate
-        double z = 1;
+        double z = depth1.at<float>(cvRound(pts1[i].x),cvRound(pts1[i].y));
+        if(z<0.01 || z>5.0)
+            z=2.5;
+
+        z=1;
+        cout<<"Depth at "<<cvRound(pts1[i].x)<<" "<<cvRound(pts1[i].y)<<" is "<<z<<endl;
         double x = (pts1[i].x - cx) * z / fx;
         double y = (pts1[i].y - cy) * z / fy;
         v->setMarginalized(true);
@@ -146,9 +175,9 @@ int main(int argc, char **argv)
     for (size_t i = 0; i < pts1.size(); i++)
     {
         g2o::VertexSBAPointXYZ *v = dynamic_cast<g2o::VertexSBAPointXYZ *>(optimizer.vertex(i + num_images));
-        cout << "vertex id " << i + num_images << ", pos = ";
         Eigen::Vector3d pos = v->estimate();
-        cout << pos(0) << "," << pos(1) << "," << pos(2) << endl;
+        //cout << "vertex id " << i + num_images << ", pos = ";
+        //cout << pos(0) << "," << pos(1) << "," << pos(2) << endl;
     }
 
     int inliers = 0;
@@ -158,7 +187,7 @@ int main(int argc, char **argv)
         // chi2 error > Pixel uncertainty
         if (e->chi2() > 1.5)
         {
-            cout << "error = " << e->chi2() << endl;
+            //cout << "error = " << e->chi2() << endl;
         }
         else
         {
@@ -204,4 +233,25 @@ int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2,vector<cv::
     }
 
     return true;
+}
+
+void imdepthshow(cv::Mat map)
+{
+    double min;
+    double max;
+    cv::minMaxIdx(map, &min, &max);
+    cv::Mat adjMap;
+    // Histogram Equalization
+    float scale = 255 / (max-min);
+    map.convertTo(adjMap,CV_8UC1, scale, -min*scale); 
+
+    // this is great. It converts your grayscale image into a tone-mapped one, 
+    // much more pleasing for the eye
+    // function is found in contrib module, so include contrib.hpp 
+    // and link accordingly
+    cv::Mat falseColorsMap;
+    applyColorMap(adjMap, falseColorsMap, cv::COLORMAP_AUTUMN);
+
+    cv::imshow("Depth", falseColorsMap);
+    cv::waitKey(0);
 }

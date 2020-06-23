@@ -30,3 +30,11 @@ target_link_libraries( icp_ba
     ${G2O_LIBS}
     ${CHOLMOD_LIBRARIES}
     )
+
+
+add_executable( ba_depth ba_depth.cpp )
+target_link_libraries( ba_depth 
+    ${OpenCV_LIBS}
+    ${G2O_LIBS}
+    ${CHOLMOD_LIBRARIES}
+    )
