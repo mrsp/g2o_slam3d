@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Call g2o_vslam -->
+  <node pkg="g2o_slam3d" type="g2o_slam3d" name="g2o_vslam3d" respawn="false" output="screen" >
+ 	<!-- Load configurations from YAML file to parameter server -->
+   	 <rosparam file="$(find g2o_vslam)/config/xtion.yaml" command="load"/> 
+  </node>
+</launch>

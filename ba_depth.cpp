@@ -55,8 +55,8 @@ int main(int argc, char **argv)
     cv::Mat img1 = cv::imread(argv[1], cv::IMREAD_GRAYSCALE);
     cv::Mat img2 = cv::imread(argv[2], cv::IMREAD_GRAYSCALE);
 
-    cv::Mat depth1 = cv::imread(argv[3], cv::IMREAD_ANYDEPTH);
-    cv::Mat depth2 = cv::imread(argv[4], cv::IMREAD_ANYDEPTH);
+    cv::Mat depth1 = cv::imread(argv[3], CV_16UC1);
+    cv::Mat depth2 = cv::imread(argv[4],  CV_16UC1);
  
     imdepthshow(depth1);
     imdepthshow(depth2);
