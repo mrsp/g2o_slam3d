@@ -41,8 +41,8 @@ int main(int argc, char *argv[])
     static ros::Rate rate(2.0 * image_freq);
     while (ros::ok())
     {
-        if(bad.frame>501)
-            break;
+        //if(bad.frame>501)
+        //    break;
 
         if (!bad.keyframe)
         {
@@ -81,11 +81,12 @@ int main(int argc, char *argv[])
         bad.addPoseVertex(false); //Unknown pose;
 
         // edges == factors
-        for (unsigned int i = 0; i < pts1.size(); i++)
+        for (unsigned int i = 0; i < corr.size(); i++)
         {
             bad.addObservationVertexWithDepth(pts1[i], bad.prevDepthImage, true);
-            bad.addObservationEdges(pts1[i], bad.vidx-1, bad.oidx - pts1.size()+i);
-            bad.addObservationEdges(pts2[i], bad.vidx, bad.oidx - pts1.size()+i);
+            //bad.addObservationVertex(pts1[i], true);
+            bad.addObservationEdges(pts1[i], bad.vidx-1, bad.oidx);
+            bad.addObservationEdges(pts2[i], bad.vidx, bad.oidx);
         }
 
         bad.prevImage =  bad.currImage.clone();
@@ -98,8 +99,10 @@ int main(int argc, char *argv[])
     bad.solve(10, true); //10 iterations in G2O and verbose
     cout << " NUM OF POSE VERTICES " << bad.vidx << endl;
     cout << " NUM OF LANDMARK VERTICES " << bad.oidx << endl;
-    bad.getPoseVertex(1);
-    bad.getPoseVertex(2);
+    for (unsigned int i = 0; i <=bad.vidx; i++)
+    {
+        bad.getPoseVertex(i);
+    }
 
     return 0;
 }

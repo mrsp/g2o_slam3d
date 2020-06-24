@@ -15,16 +15,17 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
     solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
     optimizer.setAlgorithm(solver);
     optimizer.setVerbose(false);
-    vidx = 0;
-    oidx = 0;
-    idx = 0;
+    vidx = -1;
+    idx = -1;
+    oidx = -1;
 
     ros::NodeHandle n_p("~");
     n_p.param<std::string>("image_topic", image_topic, "camera/rgb/image_rect_color");
     n_p.param<std::string>("depth_topic", depth_topic, "camera/depth_registered/sw_registered/image_rect");
     n_p.param<std::string>("cam_info_topic", cam_info_topic, "camera/rgb/camera_info");
     n_p.param<bool>("mm_to_meters", mm_to_meters, false);
-    
+    n_p.param<int>("kf_rate", kf_rate, 50);
+
     firstImageCb = true;
     keyframe = false;
     image_sub.subscribe(nh, image_topic, 1);
@@ -61,7 +62,7 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
 
 int g2o_vslam3d::findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint> &kp1, vector<cv::KeyPoint> &kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches)
 {
-     cv::Ptr<cv::Feature2D> fdetector = cv::ORB::create(5000);
+    cv::Ptr<cv::Feature2D> fdetector = cv::ORB::create(5000);
 
     cv::Mat desp1, desp2;
     fdetector->detectAndCompute(img1, cv::Mat(), kp1, desp1);
@@ -120,41 +121,42 @@ void g2o_vslam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const 
     if (mm_to_meters)
         cv_depth_ptr->image *= 0.001;
 
-    if (firstImageCb)
+    if(frame%kf_rate==0)
     {
-        if(frame%100==0)
+        if (firstImageCb)
         {
-            ROS_INFO("Image and Depth Cb");
-            //prevImage = cv_ptr->image;
-            if (cv_ptr->image.channels() == 3)
-            {
-                cvtColor(cv_ptr->image, prevImage, cv::COLOR_BGR2GRAY);
-            }
-            else
-            {
-                prevImage = cv_ptr->image;
-            }
-            prevDepthImage = cv_depth_ptr->image;
-            firstImageCb = false;
+        
+                ROS_INFO("Image and Depth Cb");
+                //prevImage = cv_ptr->image;
+                if (cv_ptr->image.channels() == 3)
+                {
+                    cvtColor(cv_ptr->image, prevImage, cv::COLOR_BGR2GRAY);
+                }
+                else
+                {
+                    prevImage = cv_ptr->image;
+                }
+                prevDepthImage = cv_depth_ptr->image;
+                firstImageCb = false;
+            
         }
-    }
-    else
-    {
-        if(frame%100==0)
+        else
         {
-            ROS_INFO("Image and Depth Cb");
-            currImageRGB = cv_ptr->image;
-            if (cv_ptr->image.channels() == 3)
-            {
-                cvtColor(cv_ptr->image, currImage, cv::COLOR_BGR2GRAY);
-            }
-            else
-            {
-                currImage = cv_ptr->image;
-            }
-            currDepthImage = cv_depth_ptr->image;
-            if (!keyframe)
-                keyframe = true;
+        
+                ROS_INFO("Image and Depth Cb");
+                currImageRGB = cv_ptr->image;
+                if (cv_ptr->image.channels() == 3)
+                {
+                    cvtColor(cv_ptr->image, currImage, cv::COLOR_BGR2GRAY);
+                }
+                else
+                {
+                    currImage = cv_ptr->image;
+                }
+                currDepthImage = cv_depth_ptr->image;
+                if (!keyframe)
+                    keyframe = true;
+            
         }
     }
     frame++;
@@ -191,24 +193,28 @@ int g2o_vslam3d::getPoseVertexId(int vidx_)
 
 void g2o_vslam3d::addPoseVertex(bool isFixed = false)
 {
-    vidx_map[vidx]=idx;
     g2o::VertexSE3Expmap *v = new g2o::VertexSE3Expmap();
+    vidx++;
+    idx++;
+    vidx_map[vidx]=idx;
     v->setId(idx);
     v->setFixed(isFixed);
     v->setEstimate(g2o::SE3Quat());
     optimizer.addVertex(v);
-    vidx++;
-    idx++;
+
+
 }
 
 void g2o_vslam3d::addObservationVertexWithDepth(cv::Point2f pts,  cv::Mat depthImg,  bool isMarginalized = true)
 {
-        oidx_map[oidx]=idx;
         g2o::VertexSBAPointXYZ *v = new g2o::VertexSBAPointXYZ();
+        oidx++;
+        idx++;
+        oidx_map[oidx]=idx;
         v->setId(idx);
         //Pinhole model to set Initial Point Estimate
         double z = depthImg.at<float>(cvRound(pts.x), cvRound(pts.y));
-        if (z < 0.01 || z > 5.0)
+        if (z < 0.01 || z > 5.0 || z!=z)
             z = 1;
 
         double x = (pts.x - cx) * z / fx;
@@ -216,14 +222,15 @@ void g2o_vslam3d::addObservationVertexWithDepth(cv::Point2f pts,  cv::Mat depthI
         v->setMarginalized(isMarginalized);
         v->setEstimate(Eigen::Vector3d(x, y, z));
         optimizer.addVertex(v);
-        oidx++;
-        idx++;
+
 }
 
 void g2o_vslam3d::addObservationVertex(cv::Point2f pts,   bool isMarginalized = true)
 {
-        oidx_map[oidx] = idx;
         g2o::VertexSBAPointXYZ *v = new g2o::VertexSBAPointXYZ();
+        idx++;
+        oidx++;
+        oidx_map[oidx] = idx;
         v->setId(idx);
         //Pinhole model to set Initial Point Estimate
         double z = 1;
@@ -232,8 +239,7 @@ void g2o_vslam3d::addObservationVertex(cv::Point2f pts,   bool isMarginalized = 
         v->setMarginalized(isMarginalized);
         v->setEstimate(Eigen::Vector3d(x, y, z));
         optimizer.addVertex(v);
-        idx++;
-        oidx++;
+ 
 }
 
 // edges == factors

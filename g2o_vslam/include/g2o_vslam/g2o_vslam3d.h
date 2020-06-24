@@ -62,6 +62,7 @@ private:
     ros::NodeHandle nh;
 
 public:
+    int kf_rate;
     int vidx, oidx, idx;
      /// current image frame
     int frame;
