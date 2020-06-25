@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Call g2o_vslam -->
+  <node pkg="g2o_vslam" type="g2o_vslam3d" name="g2o_vslam3d" respawn="false" output="screen" >
+    <!-- Load configurations from YAML file to parameter server -->
+        <rosparam file="$(find g2o_vslam)/config/loris.yaml" command="load"/> 
+    </node>  
+</launch>

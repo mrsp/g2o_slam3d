@@ -31,7 +31,8 @@ double cx = 319.5;
 double cy = 239.5;
 double fx = 570.3422241210938;
 double fy = 570.3422241210938;
-
+int width = 640;
+int height = 480;
 //Intel parameters
 // double cx = 317.23138427734375;
 // double cy = 252.4551239013672;
@@ -121,19 +122,23 @@ int main(int argc, char **argv)
         g2o::VertexSBAPointXYZ *v = new g2o::VertexSBAPointXYZ();
         v->setId(num_images + i);
         //Pinhole model to set Initial Point Estimate
-        double z = depth1.at<float>(cvRound(pts1[i].x),cvRound(pts1[i].y));
+        double z = 1.0;
+        int uu = cvRound(pts1[i].y);
+        int vv = cvRound(pts1[i].x);
+        if((vv < width &&  vv>=0 && uu >=0 && uu<height))
+        {
+            z = depth1.at<float>(uu, vv);
+            if (z < MIN_DEPTH || z > MAX_DEPTH || z!=z)
+                z = 1.0;
+        }
 
-        //Check depth is in bounds
-        if(z<MIN_DEPTH || z>MAX_DEPTH || z!=z)
-           z=1.0;
-
+        
         double x = (pts1[i].x - cx) * z / fx;
         double y = (pts1[i].y - cy) * z / fy;
         v->setMarginalized(true);
         v->setEstimate(Eigen::Vector3d(x, y, z));
         optimizer.addVertex(v);
     }
-
     // set Camera Intrinsics
     g2o::CameraParameters *camera = new g2o::CameraParameters(fx, Eigen::Vector2d(cx, cy), 0);
     camera->setId(0);

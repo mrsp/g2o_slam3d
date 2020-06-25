@@ -25,6 +25,8 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
     n_p.param<std::string>("cam_info_topic", cam_info_topic, "camera/rgb/camera_info");
     n_p.param<bool>("mm_to_meters", mm_to_meters, false);
     n_p.param<int>("kf_rate", kf_rate, 50);
+    n_p.param<double>("max_depth", max_depth, 4.0);
+    n_p.param<double>("min_depth", min_depth, 0.4);
 
     firstImageCb = true;
     keyframe = false;
@@ -213,9 +215,16 @@ void g2o_vslam3d::addObservationVertexWithDepth(cv::Point2f pts,  cv::Mat depthI
         oidx_map[oidx]=idx;
         v->setId(idx);
         //Pinhole model to set Initial Point Estimate
-        double z = depthImg.at<float>(cvRound(pts.x), cvRound(pts.y));
-        if (z < 0.01 || z > 5.0 || z!=z)
-            z = 1;
+        double z = 1.0;
+        int uu = cvRound(pts.y);
+        int vv = cvRound(pts.x);
+        if((vv < width &&  vv>=0 && uu >=0 && uu<height))
+        {
+            z = depthImg.at<float>(uu, vv);
+            if (z < min_depth || z > max_depth || z!=z)
+                z = 1.0;
+        }
+
 
         double x = (pts.x - cx) * z / fx;
         double y = (pts.y - cy) * z / fy;

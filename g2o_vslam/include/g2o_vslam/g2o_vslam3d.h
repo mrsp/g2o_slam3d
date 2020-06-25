@@ -64,6 +64,7 @@ private:
 public:
     int kf_rate;
     int vidx, oidx, idx;
+    double min_depth, max_depth;
      /// current image frame
     int frame;
     g2o_vslam3d(ros::NodeHandle nh_);
