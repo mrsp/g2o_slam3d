@@ -1,5 +1,5 @@
 cmake_minimum_required( VERSION 2.8 )
-project( g2o_icp_ba )
+project( g2o_ba )
 
 set( CMAKE_BUILD_TYPE Release )
 set( CMAKE_CXX_FLAGS "-std=c++11 -O3" )
@@ -24,16 +24,16 @@ LIST(APPEND G2O_LIBS
 
 include_directories( ${EIGEN3_INCLUDE_DIR} ${CHOLMOD_INCLUDE_DIR}    ${SUITESPARSE_INCLUDE_DIR})
 
-add_executable( icp_ba icp_ba.cpp )
-target_link_libraries( icp_ba 
+add_executable( baRGB baRGB.cpp )
+target_link_libraries( baRGB 
     ${OpenCV_LIBS}
     ${G2O_LIBS}
     ${CHOLMOD_LIBRARIES}
     )
 
 
-add_executable( ba_depth ba_depth.cpp )
-target_link_libraries( ba_depth 
+add_executable( baRGBD baRGBD.cpp )
+target_link_libraries( baRGBD 
     ${OpenCV_LIBS}
     ${G2O_LIBS}
     ${CHOLMOD_LIBRARIES}
