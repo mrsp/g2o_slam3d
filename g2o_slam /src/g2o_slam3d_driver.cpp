@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
         // pose.translation()(0) = 0.25;
         // pose.translation()(1) = 0.25;
         // pose.translation()(2) = 0.25;
-        // bad.addPoseEdge(pose,bad.vidx);
+        //bad.addPoseEdge(pose,bad.vidx);
         // edges == factors
         for (unsigned int i = 0; i < corr.size(); i++)
         {
@@ -95,7 +95,6 @@ int main(int argc, char *argv[])
         bad.prevImage =  bad.currImage.clone();
         bad.prevDepthImage =  bad.currDepthImage.clone();
         bad.keyframe = false;
-        break;
         ros::spinOnce();
         rate.sleep();
     }
