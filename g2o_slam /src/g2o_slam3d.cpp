@@ -34,8 +34,8 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
     n_p.param<std::string>("cam_info_topic", cam_info_topic, "camera/rgb/camera_info");
     n_p.param<bool>("mm_to_meters", mm_to_meters, false);
     n_p.param<int>("kf_rate", kf_rate, 50);
-    n_p.param<double>("max_depth", max_depth, 4.0);
-    n_p.param<double>("min_depth", min_depth, 0.4);
+    n_p.param<double>("max_depth", max_depth, 6.0);
+    n_p.param<double>("min_depth", min_depth, 0.01);
 
     firstImageCb = true;
     keyframe = false;
@@ -222,7 +222,7 @@ void g2o_slam3d::addObservationVertex(cv::Point2f pts, cv::Mat depthImg, bool is
         oidx_map[oidx]=idx;
         v->setId(idx);
         v->setEstimate(projectuvXYZ(pts,depthImg));
-        v->setMarginalized(true);
+        //v->setMarginalized(true);
         optimizer.addVertex(v);
 
 }
@@ -240,6 +240,7 @@ Eigen::Vector3d g2o_slam3d::projectuvXYZ(cv::Point2f pts, cv::Mat depthImg)
         if (z < min_depth || z > max_depth || z != z)
             z = 1.0;
     }
+
     ret(0) = (pts.x - cx) * z / fx;
     ret(1) = (pts.y - cy) * z / fy;
     ret(2) = z;
@@ -262,15 +263,13 @@ void g2o_slam3d::addPoseEdge(Eigen::Affine3d pose, int vertexId)
 // edges == factors
 void g2o_slam3d::addObservationEdges(Eigen::Vector3d p, int vertexId, int obsId)
 {
-
         g2o::EdgeSE3PointXYZ *edge = new g2o::EdgeSE3PointXYZ();
-
-        edge->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(getObservationVertexId(obsId))));
-        edge->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(getPoseVertexId(vertexId))));
+        edge->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(getObservationVertexId(obsId))));
+        edge->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(getPoseVertexId(vertexId))));
         edge->setMeasurement(p);
         edge->setInformation(Eigen::Matrix3d::Identity()*0.1);
         edge->setParameterId(0, 0);
-        //edge->setRobustKernel(new g2o::RobustKernelHuber());
+        edge->setRobustKernel(new g2o::RobustKernelHuber());
         optimizer.addEdge(edge);
         edges.push_back(edge);
 }

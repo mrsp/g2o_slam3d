@@ -88,7 +88,6 @@ int main(int argc, char *argv[])
             bad.addObservationEdges(pts1[i], bad.vidx-1, bad.oidx);
             bad.addObservationEdges(pts2[i], bad.vidx, bad.oidx);
         }
-
         bad.prevImage =  bad.currImage.clone();
         bad.prevDepthImage =  bad.currDepthImage.clone();
         bad.keyframe = false;

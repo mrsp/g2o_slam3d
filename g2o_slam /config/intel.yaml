@@ -1,10 +1,10 @@
 image_topic: "/camera/color/image_raw"
 cam_info_topic: "/camera/color/camera_info"
-depth_topic: "/camera/depth/image_rect_raw"
+depth_topic: "/camera/aligned_depth_to_color/image_raw"
 mm_to_meters: true
 image_freq: 30
-min_depth: 0.8
-max_depth: 4.0
+min_depth: 0.01
+max_depth: 6.0
 max_depth_difference: 0.08
 max_points_part: 0.09
 publish_rate: 50

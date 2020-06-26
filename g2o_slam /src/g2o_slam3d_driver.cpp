@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 
         //vertices == nodes
         bad.addPoseVertex(false); //Unknown pose;
-        //bad.addPoseEdge(Eigen::Affine3d::Identity(),bad.vidx);
+        bad.addPoseEdge(Eigen::Affine3d::Identity(),bad.vidx);
         // edges == factors
         for (unsigned int i = 0; i < corr.size(); i++)
         {
@@ -88,10 +88,10 @@ int main(int argc, char *argv[])
             bad.addObservationEdges(bad.projectuvXYZ(pts1[i], bad.prevDepthImage), bad.vidx-1, bad.oidx);
             bad.addObservationEdges(bad.projectuvXYZ(pts2[i], bad.currDepthImage), bad.vidx, bad.oidx);
         }
-
         bad.prevImage =  bad.currImage.clone();
         bad.prevDepthImage =  bad.currDepthImage.clone();
         bad.keyframe = false;
+        break;
         ros::spinOnce();
         rate.sleep();
     }
