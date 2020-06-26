@@ -255,8 +255,13 @@ void g2o_vslam3d::addObservationVertex(cv::Point2f pts,   bool isMarginalized = 
 void g2o_vslam3d::addObservationEdges(cv::Point2f pts, int vertexId, int obsId)
 {
         g2o::EdgeProjectXYZ2UV *edge = new g2o::EdgeProjectXYZ2UV();
-        edge->setVertex(0, dynamic_cast<g2o::VertexSBAPointXYZ *>(optimizer.vertex(getObservationVertexId(obsId))));
-        edge->setVertex(1, dynamic_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(getPoseVertexId(vertexId))));
+        g2o::VertexSBAPointXYZ* vp0 = dynamic_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertices().find(getObservationVertexId(obsId))->second);
+        g2o::VertexSE3Expmap* vp1 = dynamic_cast<g2o::VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
+        edge->setVertex(0, vp0);
+        edge->setVertex(1, vp1);
+
+
+
         edge->setMeasurement(Eigen::Vector2d(pts.x, pts.y));
         edge->setInformation(Eigen::Matrix2d::Identity());
         edge->setParameterId(0, 0);

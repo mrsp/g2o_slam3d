@@ -6,19 +6,24 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
     img_inc = false;
     frame = 0;
     //Now g2o uses c++11 smart pointer instead of raw pointer
-    std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver;
-
-
-
-
-    bool _isDense = false;
-    if(_isDense)
-        linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
-    else
-        linearSolver = g2o::make_unique<g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>>();
+    // std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver;
+    // bool _isDense = false;
+    // if(_isDense)
+    //     linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
+    // else
+    //     linearSolver = g2o::make_unique<g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>>();
     
-    g2o::OptimizationAlgorithmLevenberg *solver =  new OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
-    //g2o::OptimizationAlgorithmGaussNewton *solver =  new OptimizationAlgorithmGaussNewton(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
+    // g2o::OptimizationAlgorithmLevenberg *solver =  new OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
+    // //g2o::OptimizationAlgorithmGaussNewton *solver =  new OptimizationAlgorithmGaussNewton(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
+
+
+    // create the linear solver
+    auto linearSolver = g2o::make_unique<LinearSolverCSparse<BlockSolverX::PoseMatrixType>>();
+
+    // create the block solver on top of the linear solver
+    auto blockSolver = g2o::make_unique<BlockSolverX>(std::move(linearSolver));
+    OptimizationAlgorithmLevenberg* solver = new OptimizationAlgorithmLevenberg(std::move(blockSolver));
+
 
     optimizer.setAlgorithm(solver);
 
@@ -204,7 +209,7 @@ int g2o_slam3d::getPoseVertexId(int vidx_)
 
 void g2o_slam3d::addPoseVertex(bool isFixed = false)
 {
-    g2o::VertexSE3Expmap *v = new g2o::VertexSE3Expmap();
+    g2o::VertexSE3 *v = new g2o::VertexSE3();
     vidx++;
     idx++;
     vidx_map[vidx]=idx;
@@ -222,7 +227,7 @@ void g2o_slam3d::addObservationVertex(cv::Point2f pts, cv::Mat depthImg, bool is
         oidx_map[oidx]=idx;
         v->setId(idx);
         v->setEstimate(projectuvXYZ(pts,depthImg));
-        //v->setMarginalized(true);
+        v->setMarginalized(true);
         optimizer.addVertex(v);
 
 }
@@ -252,8 +257,11 @@ void g2o_slam3d::addPoseEdge(Eigen::Affine3d pose, int vertexId)
 {
     //add odometry edge
     g2o::EdgeSE3 *odom=new g2o::EdgeSE3();
-    odom->setVertex(0,dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(getPoseVertexId(vertexId))));
-    odom->setVertex(1,dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(getPoseVertexId(vertexId-1))));
+    // get two poses
+    VertexSE3* vp0 = dynamic_cast<VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId-1))->second);
+    VertexSE3* vp1 = dynamic_cast<VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
+    odom->setVertex(0,vp0);
+    odom->setVertex(1,vp1);
     odom->setInformation(Eigen::Matrix<double, 6, 6>::Identity());
     odom->setParameterId(0, 0);
     odom->setMeasurement(g2o::SE3Quat(pose.linear(),pose.translation()));
@@ -264,8 +272,10 @@ void g2o_slam3d::addPoseEdge(Eigen::Affine3d pose, int vertexId)
 void g2o_slam3d::addObservationEdges(Eigen::Vector3d p, int vertexId, int obsId)
 {
         g2o::EdgeSE3PointXYZ *edge = new g2o::EdgeSE3PointXYZ();
-        edge->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(getObservationVertexId(obsId))));
-        edge->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(getPoseVertexId(vertexId))));
+        VertexPointXYZ* vp0 = dynamic_cast<VertexPointXYZ*>(optimizer.vertices().find(getObservationVertexId(obsId))->second);
+        VertexSE3* vp1 = dynamic_cast<VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
+        edge->setVertex(0, vp1);
+        edge->setVertex(1, vp0);
         edge->setMeasurement(p);
         edge->setInformation(Eigen::Matrix3d::Identity()*0.1);
         edge->setParameterId(0, 0);
@@ -284,7 +294,7 @@ void g2o_slam3d::solve(int num_iter = 10, bool verbose = false)
 void g2o_slam3d::getPoseVertex(int vertexId)
 {
     int tmp_id = getPoseVertexId(vertexId);
-    g2o::VertexSE3Expmap *v = dynamic_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(tmp_id));
+    g2o::VertexSE3 *v = dynamic_cast<g2o::VertexSE3 *>(optimizer.vertex(tmp_id));
     Eigen::Isometry3d pose = v->estimate();
     cout << "Pose=" << endl << pose.matrix() << endl;
 }

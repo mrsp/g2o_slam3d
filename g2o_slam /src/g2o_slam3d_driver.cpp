@@ -80,7 +80,11 @@ int main(int argc, char *argv[])
 
         //vertices == nodes
         bad.addPoseVertex(false); //Unknown pose;
-        bad.addPoseEdge(Eigen::Affine3d::Identity(),bad.vidx);
+        // Eigen::Affine3d pose = Eigen::Affine3d::Identity();
+        // pose.translation()(0) = 0.25;
+        // pose.translation()(1) = 0.25;
+        // pose.translation()(2) = 0.25;
+        // bad.addPoseEdge(pose,bad.vidx);
         // edges == factors
         for (unsigned int i = 0; i < corr.size(); i++)
         {
@@ -96,7 +100,7 @@ int main(int argc, char *argv[])
         rate.sleep();
     }
 
-    bad.solve(10, true); //10 iterations in G2O and verbose
+    bad.solve(6, true); //6 iterations in G2O and verbose
     cout << " NUM OF POSE VERTICES " << bad.vidx << endl;
     cout << " NUM OF LANDMARK VERTICES " << bad.oidx << endl;
     for (unsigned int i = 0; i <=bad.vidx; i++)
