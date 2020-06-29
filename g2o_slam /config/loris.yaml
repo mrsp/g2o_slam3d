@@ -5,3 +5,7 @@ mm_to_meters: true
 image_freq: 30
 min_depth: 0.8
 max_depth: 4.0
+odom_topic: "/odom"
+odom_freq: 20
+#T_B_P: [0, 1, 0, 0, -1, 0, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1]
+T_B_P: [0, 0, 1, 0, -1, 0, 0, 0, 0, -1 ,0 ,0, 0, 0, 0, 1] #SVO without imu

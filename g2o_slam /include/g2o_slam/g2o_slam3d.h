@@ -44,9 +44,9 @@
 #include <map>
 using namespace std;
 using namespace g2o;
+using namespace Eigen;
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
-
 class g2o_slam3d
 {
 private:
@@ -70,6 +70,8 @@ private:
     ros::NodeHandle nh;
 
 public:
+    Eigen::Affine3d odom_pose, opt_pose, T_B_P;
+    Eigen::Quaterniond q_B_P;
     int kf_rate;
     int vidx, oidx, idx;
     double min_depth, max_depth;
@@ -77,6 +79,8 @@ public:
     int frame;
     g2o_slam3d(ros::NodeHandle nh_);
     bool keyframe;
+    /// flag to indicate a new odometry measurement
+    bool odom_inc;
     ///placeholders for previous and current Grayscale/RGB/Depth Image
     cv::Mat currImage, prevImage, currImageRGB, prevDepthImage, currDepthImage;
     ///ROS RGB Image Subscriber
@@ -85,15 +89,16 @@ public:
     message_filters::Subscriber<sensor_msgs::Image> depth_sub;
     /// ROS Synchronization for RGB and DEPTH msgs
     message_filters::Synchronizer<MySyncPolicy> *ts_sync;
+    ros::Subscriber odom_sub;
     /// ROS image, depth and camera info topics
-    std::string image_topic, depth_topic, cam_info_topic;
+    std::string image_topic, depth_topic, cam_info_topic, odom_topic;
     void imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &depth_msg);
     /** @fn void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);
      * @brief Camera Info Callback
      */
     void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);
 
-    void addPoseVertex(bool isFixed);
+    void addPoseVertex(Eigen::Affine3d pose, bool isFixed);
     int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint> &kp1, vector<cv::KeyPoint> &kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches);
 
     void addObservationVertex(cv::Point2f pts, cv::Mat depthImg, bool isMarginalized);
@@ -103,15 +108,15 @@ public:
 
     void solve(int num_iter, bool verbose);
 
-    void getPoseVertex(int vertexId);
+    Eigen::Affine3d getPoseVertex(int vertexId);
 
-    void getObservationVertex(int obsId);
+    Eigen::Vector3d getObservationVertex(int obsId);
     Eigen::Vector3d projectuvXYZ(cv::Point2f pts, cv::Mat depthImg);
     void getInliers();
     
     int getPoseVertexId(int vidx_);
     int getObservationVertexId(int oidx_);
     void imdepthshow(cv::Mat map);
-
+    void odomCb(const  nav_msgs::OdometryConstPtr &odom_msg);
 
 };

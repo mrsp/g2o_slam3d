@@ -36,14 +36,14 @@ int main(int argc, char *argv[])
     ros::NodeHandle n;
     g2o_slam3d bad(n);
     ros::NodeHandle n_p("~");
-    double image_freq;
+    double image_freq, odom_freq;
     n_p.param<double>("image_freq", image_freq, 100.0);
-    static ros::Rate rate(2.0 * image_freq);
+    n_p.param<double>("odom_freq", odom_freq, 100.0);
+    double freq = fmax(image_freq,odom_freq);
+
+    static ros::Rate rate(2.0 * freq);
     while (ros::ok())
     {
-        //if(bad.frame>501)
-        //    break;
-
         if (!bad.keyframe)
         {
             ros::spinOnce();
@@ -52,8 +52,6 @@ int main(int argc, char *argv[])
 
         }
        
-        
-
         // Keypoints placeholder
         vector<cv::Point2f> pts1, pts2;
         vector<cv::DMatch> corr;
@@ -78,13 +76,29 @@ int main(int argc, char *argv[])
         // cv::imshow("Knn Matches found", img_matched);
         // cv::waitKey(0);
 
+
         //vertices == nodes
-        bad.addPoseVertex(false); //Unknown pose;
-        // Eigen::Affine3d pose = Eigen::Affine3d::Identity();
-        // pose.translation()(0) = 0.25;
-        // pose.translation()(1) = 0.25;
-        // pose.translation()(2) = 0.25;
-        //bad.addPoseEdge(pose,bad.vidx);
+        if(bad.odom_inc)
+        {
+            Eigen::Affine3d initOdom  =  bad.getPoseVertex(bad.vidx);
+            cout<<"Initial Odom vidx "<<bad.vidx<<" "<<endl<<initOdom.matrix()<<endl;
+
+            Eigen::Affine3d rel_odom_pose =   initOdom.inverse() * bad.odom_pose; 
+            bad.addPoseVertex(bad.odom_pose,false);
+            bad.addPoseEdge(rel_odom_pose,bad.vidx);
+            cout<<"Got New Odom "<<endl<<bad.odom_pose.matrix()<<endl;
+            cout<<"Got New REL Odom "<<endl<<rel_odom_pose.matrix()<<endl;
+
+            // Eigen::Affine3d pose = Eigen::Affine3d::Identity();
+            // pose.translation()(0) = 0.25;
+            // pose.translation()(1) = 0.25;
+            // pose.translation()(2) = 0.25;
+            //bad.addPoseEdge(pose,bad.vidx);
+            bad.odom_inc = false;
+        }
+        else
+            bad.addPoseVertex(Eigen::Affine3d::Identity(),false); //Unknown pose;
+
         // edges == factors
         for (unsigned int i = 0; i < corr.size(); i++)
         {
