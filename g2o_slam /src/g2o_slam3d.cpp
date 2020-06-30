@@ -38,14 +38,13 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
     n_p.param<std::string>("depth_topic", depth_topic, "camera/depth_registered/sw_registered/image_rect");
     n_p.param<std::string>("cam_info_topic", cam_info_topic, "camera/rgb/camera_info");
     n_p.param<std::string>("odom_topic", odom_topic, "/kfusion/odom");
-
     n_p.param<bool>("mm_to_meters", mm_to_meters, false);
     n_p.param<int>("kf_rate", kf_rate, 50);
     n_p.param<double>("max_depth", max_depth, 6.0);
     n_p.param<double>("min_depth", min_depth, 0.01);
     std::vector<double> affine_list;
     n_p.getParam("T_B_P", affine_list);
-    if(affine_list.size()>0)
+    if(affine_list.size() == 16)
     {
         T_B_P(0, 0) = affine_list[0];
         T_B_P(0, 1) = affine_list[1];
@@ -63,13 +62,13 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
         T_B_P(3, 1) = affine_list[13];
         T_B_P(3, 2) = affine_list[14];
         T_B_P(3, 3) = affine_list[15];
-        T_B_P = T_B_P.inverse();
     }
     else
     {
         T_B_P.Identity();
     }
     
+    cout<<"TBP "<<endl<<T_B_P.matrix()<<endl;
     q_B_P = Quaterniond(T_B_P.linear());
 
     firstImageCb = true;
@@ -102,7 +101,6 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
     //Initialize graph with an Identity Affine TF
     addPoseVertex(Eigen::Affine3d::Identity(),true);//Initial Pose is anchored 
     odom_pose = Eigen::Affine3d::Identity();
-    opt_pose = Eigen::Affine3d::Identity();
 }
 
 void g2o_slam3d::odomCb(const nav_msgs::OdometryConstPtr &odom_msg)
@@ -112,7 +110,7 @@ void g2o_slam3d::odomCb(const nav_msgs::OdometryConstPtr &odom_msg)
     Quaterniond q_ = Quaterniond(odom_msg->pose.pose.orientation.w, odom_msg->pose.pose.orientation.x,odom_msg->pose.pose.orientation.y,odom_msg->pose.pose.orientation.z);
     
     t_ = T_B_P*t_;
-    q_ = q_B_P* q_ * q_B_P;
+    q_ = q_B_P* q_ * q_B_P.inverse();
     odom_pose.translation() = t_;
     odom_pose.linear() = q_.toRotationMatrix();
 
@@ -342,7 +340,7 @@ Eigen::Affine3d g2o_slam3d::getPoseVertex(int vertexId)
     Eigen::Affine3d pose = Eigen::Affine3d::Identity();
     pose.linear() = tmp_pose.linear();
     pose.translation() = tmp_pose.translation();
-    cout << "Pose=" << endl << pose.matrix() << endl;
+    //cout << "Pose=" << endl << pose.matrix() << endl;
     return pose;
 }
 
@@ -351,8 +349,8 @@ Eigen::Vector3d g2o_slam3d::getObservationVertex(int obsId)
     int tmp_id = getObservationVertexId(obsId);
     g2o::VertexPointXYZ *v = dynamic_cast<g2o::VertexPointXYZ *>(optimizer.vertex(tmp_id));
     Eigen::Vector3d pos = v->estimate();
-    cout << "vertex id " << tmp_id << ", pos = ";
-    cout << pos(0) << "," << pos(1) << "," << pos(2) << endl;
+    //cout << "vertex id " << tmp_id << ", pos = ";
+    //cout << pos(0) << "," << pos(1) << "," << pos(2) << endl;
     return pos;
 }
 

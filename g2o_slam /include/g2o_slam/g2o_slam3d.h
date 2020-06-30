@@ -70,7 +70,7 @@ private:
     ros::NodeHandle nh;
 
 public:
-    Eigen::Affine3d odom_pose, opt_pose, T_B_P;
+    Eigen::Affine3d odom_pose, T_B_P;
     Eigen::Quaterniond q_B_P;
     int kf_rate;
     int vidx, oidx, idx;
