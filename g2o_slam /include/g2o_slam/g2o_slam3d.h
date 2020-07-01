@@ -101,10 +101,10 @@ public:
     void addPoseVertex(Eigen::Affine3d pose, bool isFixed);
     int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint> &kp1, vector<cv::KeyPoint> &kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches);
 
-    void addObservationVertex(cv::Point2f pts, cv::Mat depthImg, bool isMarginalized);
-    void addPoseEdge(Eigen::Affine3d pose, int vertexId);
+    void addObservationVertex(Eigen::Vector3d pos_, bool isMarginalized);
+    void addPoseEdge(Eigen::Affine3d pose, Eigen::Matrix<double, 6, 6> cov, int vertexId);
     // edges == factors
-    void addObservationEdges(Eigen::Vector3d pos, int vertexId, int obsId);
+    void addObservationEdges(Eigen::Vector3d p, Eigen::Matrix3d cov, int vertexId, int obsId);
 
     void solve(int num_iter, bool verbose);
 

@@ -69,7 +69,6 @@ int main(int argc, char *argv[])
             ros::spinOnce();
             rate.sleep();
             continue;
-
         }
        
         // Keypoints placeholder
@@ -79,7 +78,11 @@ int main(int argc, char *argv[])
         if (bad.findCorrespondingPoints(bad.prevImage, bad.currImage, kpts1, kpts2, pts1, pts2, corr) == false)
         {
             cout << "no matches found" << endl;
-
+            bad.prevImage =  bad.currImage.clone();
+            bad.prevDepthImage =  bad.currDepthImage.clone();
+            bad.keyframe = false;
+            ros::spinOnce();
+            rate.sleep();
             continue;
         }
 
@@ -98,14 +101,12 @@ int main(int argc, char *argv[])
 
 
         //vertices == nodes
+        Eigen::Affine3d pose_0  =  bad.getPoseVertex(bad.vidx);
         if(bad.odom_inc)
         {
-            Eigen::Affine3d initOdom  =  bad.getPoseVertex(bad.vidx);
-            cout<<"Initial Odom vidx "<<bad.vidx<<" "<<endl<<initOdom.matrix()<<endl;
-
-            Eigen::Affine3d rel_odom_pose =  bad.odom_pose * initOdom.inverse(); 
+            Eigen::Affine3d rel_odom_pose =   pose_0.inverse() * bad.odom_pose;
             bad.addPoseVertex(bad.odom_pose,false);
-            bad.addPoseEdge(rel_odom_pose,bad.vidx);
+            bad.addPoseEdge(rel_odom_pose, Eigen::Matrix<double, 6, 6>::Identity(), bad.vidx);
             cout<<"Got New Odom "<<endl<<bad.odom_pose.matrix()<<endl;
             cout<<"Got New REL Odom "<<endl<<rel_odom_pose.matrix()<<endl;
 
@@ -117,14 +118,22 @@ int main(int argc, char *argv[])
             bad.odom_inc = false;
         }
         else
-            bad.addPoseVertex(Eigen::Affine3d::Identity(),false); //Unknown pose;
+            bad.addPoseVertex(Eigen::Affine3d::Identity(), false); //Unknown pose;
 
+
+
+        Eigen::Affine3d pose_1  =  bad.getPoseVertex(bad.vidx);
+        Eigen::Vector3d pos1, rel_pos1, rel_pos0;
         // edges == factors
         for (unsigned int i = 0; i < corr.size(); i++)
         {
-            bad.addObservationVertex(pts1[i], bad.prevDepthImage,true);
-            bad.addObservationEdges(bad.projectuvXYZ(pts1[i], bad.prevDepthImage), bad.vidx-1, bad.oidx);
-            bad.addObservationEdges(bad.projectuvXYZ(pts2[i], bad.currDepthImage), bad.vidx, bad.oidx);
+            rel_pos0 = bad.projectuvXYZ(pts1[i], bad.prevDepthImage);
+            rel_pos1 = bad.projectuvXYZ(pts2[i], bad.currDepthImage);
+            pos1 = pose_1 * rel_pos1;
+
+            bad.addObservationVertex(pos1,true);
+            bad.addObservationEdges(rel_pos0, Eigen::Matrix3d::Identity()*0.01, bad.vidx-1, bad.oidx);
+            bad.addObservationEdges(rel_pos1, Eigen::Matrix3d::Identity()*0.01, bad.vidx, bad.oidx);
         }
         bad.prevImage =  bad.currImage.clone();
         bad.prevDepthImage =  bad.currDepthImage.clone();
@@ -141,6 +150,7 @@ int main(int argc, char *argv[])
     bad.solve(6, true); //6 iterations in G2O and verbose
     cout << " NUM OF POSE VERTICES " << bad.vidx << endl;
     cout << " NUM OF LANDMARK VERTICES " << bad.oidx << endl;
+    
     for (unsigned int i = 0; i <=bad.vidx; i++)
     {
         opt_pose = bad.getPoseVertex(i);
@@ -160,7 +170,7 @@ int main(int argc, char *argv[])
         tmp_pose.pose = opt_pose_msg.pose.pose;
         tmp_pose.header = opt_pose_msg.header;
 		opt_odom_path_msg.poses.push_back(tmp_pose);
-        ros::Duration(0.1).sleep();
+        ros::Duration(0.25).sleep();
     }
     opt_odom_path_msg.header = opt_pose_msg.header;
     opt_odom_path_pub.publish(opt_odom_path_msg);

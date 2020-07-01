@@ -68,7 +68,6 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
         T_B_P.Identity();
     }
     
-    cout<<"TBP "<<endl<<T_B_P.matrix()<<endl;
     q_B_P = Quaterniond(T_B_P.linear());
 
     firstImageCb = true;
@@ -260,14 +259,14 @@ void g2o_slam3d::addPoseVertex(Eigen::Affine3d pose_, bool isFixed = false)
     getPoseVertex(vidx);
 }
 
-void g2o_slam3d::addObservationVertex(cv::Point2f pts, cv::Mat depthImg, bool isMarginalized = true)
+void g2o_slam3d::addObservationVertex(Eigen::Vector3d pos_, bool isMarginalized = true)
 {
         g2o::VertexPointXYZ* v = new g2o::VertexPointXYZ();
         oidx++;
         idx++;
         oidx_map[oidx]=idx;
         v->setId(idx);
-        v->setEstimate(projectuvXYZ(pts,depthImg));
+        v->setEstimate(pos_);
         v->setMarginalized(true);
         optimizer.addVertex(v);
 
@@ -294,7 +293,7 @@ Eigen::Vector3d g2o_slam3d::projectuvXYZ(cv::Point2f pts, cv::Mat depthImg)
     return ret;
 }
 
-void g2o_slam3d::addPoseEdge(Eigen::Affine3d pose, int vertexId)
+void g2o_slam3d::addPoseEdge(Eigen::Affine3d pose, Eigen::Matrix<double, 6, 6> cov, int vertexId)
 {
     //add odometry edge
     g2o::EdgeSE3 *odom=new g2o::EdgeSE3();
@@ -303,14 +302,14 @@ void g2o_slam3d::addPoseEdge(Eigen::Affine3d pose, int vertexId)
     VertexSE3* vp1 = dynamic_cast<VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
     odom->setVertex(0,vp0);
     odom->setVertex(1,vp1);
-    odom->setInformation(Eigen::Matrix<double, 6, 6>::Identity());
+    odom->setInformation(cov);
     odom->setParameterId(0, 0);
     odom->setMeasurement(g2o::SE3Quat(pose.linear(),pose.translation()));
     optimizer.addEdge(odom);
 }
 
 // edges == factors
-void g2o_slam3d::addObservationEdges(Eigen::Vector3d p, int vertexId, int obsId)
+void g2o_slam3d::addObservationEdges(Eigen::Vector3d p, Eigen::Matrix3d cov, int vertexId, int obsId)
 {
         g2o::EdgeSE3PointXYZ *edge = new g2o::EdgeSE3PointXYZ();
         VertexPointXYZ* vp0 = dynamic_cast<VertexPointXYZ*>(optimizer.vertices().find(getObservationVertexId(obsId))->second);
@@ -318,7 +317,7 @@ void g2o_slam3d::addObservationEdges(Eigen::Vector3d p, int vertexId, int obsId)
         edge->setVertex(0, vp1);
         edge->setVertex(1, vp0);
         edge->setMeasurement(p);
-        edge->setInformation(Eigen::Matrix3d::Identity()*0.1);
+        edge->setInformation(cov);
         edge->setParameterId(0, 0);
         edge->setRobustKernel(new g2o::RobustKernelHuber());
         optimizer.addEdge(edge);
