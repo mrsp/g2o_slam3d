@@ -11,7 +11,7 @@ max_depth_difference: 0.08
 max_points_part: 0.09
 odom_freq: 30
 odom_topic: "/kfusion/odom"
-#TF FROM EXTERNAL VO TO CAMERA FRAME
+#TF FROM EXTERNAL Odometry TO CAMERA FRAME
 T_B_P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1] 
 #T_B_P: [0, 1, 0, 0, -1, 0, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1]
 

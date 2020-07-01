@@ -79,7 +79,7 @@ public:
     int frame;
     g2o_slam3d(ros::NodeHandle nh_);
     bool keyframe;
-    /// flag to indicate a new odometry measurement
+    ///flag to indicate a new odometry measurement
     bool odom_inc;
     ///placeholders for previous and current Grayscale/RGB/Depth Image
     cv::Mat currImage, prevImage, currImageRGB, prevDepthImage, currDepthImage;
