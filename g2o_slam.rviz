@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /g2o Odometry1
         - /g2o Odometry1/Shape1
         - /g2o Path1/Status1
       Splitter Ratio: 0.5
@@ -52,8 +53,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 5.36507463
-        Min Value: 0.728951335
+        Max Value: 2.64626718
+        Min Value: 0.279612869
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -96,13 +97,13 @@ Visualization Manager:
           Scale: 1
           Value: true
         Value: true
-      Enabled: false
+      Enabled: true
       Keep: 100
       Name: g2o Odometry
       Position Tolerance: 0.100000001
       Shape:
         Alpha: 1
-        Axes Length: 0.25
+        Axes Length: 0.0500000007
         Axes Radius: 0.00999999978
         Color: 255; 25; 0
         Head Length: 0.300000012
@@ -112,7 +113,7 @@ Visualization Manager:
         Value: Axes
       Topic: /vipGPU/odom
       Unreliable: false
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -230,25 +231,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.27912426
+      Distance: 1.11198473
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.10831894
-        Y: 0.0134512885
-        Z: 0.225224614
+        X: -0.106348813
+        Y: 0.158607975
+        Z: 0.557168961
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: -1.01479733
+      Pitch: -0.749797106
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.56043673
+      Yaw: 5.0455246
     Saved: ~
 Window Geometry:
   Camera:
