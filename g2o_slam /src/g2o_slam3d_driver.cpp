@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
         rate.sleep();
     }
 
-    bad.solve(6, true); //6 iterations in G2O and verbose
+    bad.solve(10, true); //6 iterations in G2O and verbose
     cout << " NUM OF POSE VERTICES " << bad.vidx << endl;
     cout << " NUM OF LANDMARK VERTICES " << bad.oidx << endl;
     

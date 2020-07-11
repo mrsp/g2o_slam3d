@@ -122,14 +122,14 @@ int main(int argc, char *argv[])
         Eigen::Affine3d pose_1  =  bad.getPoseVertex(bad.vidx);
         Eigen::Vector3d pos1, rel_pos1;
         // edges == factors
-       
+        
         for (unsigned int i = 0; i < corr.size(); i++)
         {
             rel_pos1 = bad.projectuvXYZ(pts2[i], bad.currDepthImage);
             pos1 = pose_1 * rel_pos1;
             bad.addObservationVertex(pos1,true);
-            bad.addObservationEdges(pts1[i], Eigen::Matrix2d::Identity()*0.01, bad.vidx-1, bad.oidx);
-            bad.addObservationEdges(pts2[i], Eigen::Matrix2d::Identity()*0.01, bad.vidx, bad.oidx);
+            bad.addObservationEdges(pts1[i], Eigen::Matrix2d::Identity(), bad.vidx-1, bad.oidx);
+            bad.addObservationEdges(pts2[i], Eigen::Matrix2d::Identity(), bad.vidx, bad.oidx);
         }
         
         bad.prevImage =  bad.currImage.clone();
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
         rate.sleep();
     }
 
-    bad.solve(100, true); //10 iterations in G2O and verbose
+    bad.solve(10, true); //10 iterations in G2O and verbose
     cout << " NUM OF POSE VERTICES " << bad.vidx << endl;
     cout << " NUM OF LANDMARK VERTICES " << bad.oidx << endl;
     

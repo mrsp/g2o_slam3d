@@ -223,6 +223,8 @@ void g2o_vslam3d::cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg)
         cx = msg->K[2];
         fy = msg->K[4];
         cy = msg->K[5];
+        cout<<"Camera Parameters"<<endl;
+        cout<<"fx "<<fx<<" fy "<<fy<<" cx "<<cx<<" cy "<<cy<<endl;
 }
 
 int g2o_vslam3d::getObservationVertexId(int oidx_)
@@ -238,7 +240,7 @@ int g2o_vslam3d::getPoseVertexId(int vidx_)
 
 void g2o_vslam3d::addPoseVertex(Eigen::Affine3d pose_, bool isFixed = false)
 {
-    g2o::VertexSE3 *v = new g2o::VertexSE3();
+    g2o::VertexSE3Expmap *v = new g2o::VertexSE3Expmap();
     vidx++;
     idx++;
     vidx_map[vidx]=idx;
@@ -251,10 +253,10 @@ void g2o_vslam3d::addPoseVertex(Eigen::Affine3d pose_, bool isFixed = false)
 void g2o_vslam3d::addPoseEdge(Eigen::Affine3d pose, Eigen::Matrix<double, 6, 6> cov, int vertexId)
 {
     //add odometry edge
-    g2o::EdgeSE3 *odom=new g2o::EdgeSE3();
+    g2o::EdgeSE3Expmap *odom=new g2o::EdgeSE3Expmap();
     // get two poses
-    g2o::VertexSE3* vp0 = dynamic_cast<g2o::VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId-1))->second);
-    g2o::VertexSE3* vp1 = dynamic_cast<g2o::VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
+    g2o::VertexSE3Expmap* vp0 = dynamic_cast<g2o::VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId-1))->second);
+    g2o::VertexSE3Expmap* vp1 = dynamic_cast<g2o::VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
     odom->setVertex(0,vp0);
     odom->setVertex(1,vp1);
     odom->setInformation(cov);
@@ -346,13 +348,10 @@ void g2o_vslam3d::addObservationVertex(Eigen::Vector3d pos_, bool isMarginalized
 void g2o_vslam3d::addObservationEdges(cv::Point2f pts, Eigen::Matrix2d cov,int vertexId, int obsId)
 {
         g2o::EdgeProjectXYZ2UV *edge = new g2o::EdgeProjectXYZ2UV();
-        g2o::VertexSBAPointXYZ* vp0 = dynamic_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertices().find(getObservationVertexId(obsId))->second);
-        g2o::VertexSE3* vp1 = dynamic_cast<g2o::VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
-        edge->setVertex(0, vp0);
-        edge->setVertex(1, vp1);
-
-
-
+        //g2o::VertexSBAPointXYZ* vp0 = dynamic_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertices().find(getObservationVertexId(obsId))->second);
+        //g2o::VertexSE3Expmap* vp1 = dynamic_cast<g2o::VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
+        edge->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertices().find(getObservationVertexId(obsId))->second));
+        edge->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second));
         edge->setMeasurement(Eigen::Vector2d(pts.x, pts.y));
         edge->setInformation(cov);
         edge->setParameterId(0, 0);
@@ -371,7 +370,7 @@ void g2o_vslam3d::solve(int num_iter = 10, bool verbose = false)
 Eigen::Affine3d g2o_vslam3d::getPoseVertex(int vertexId)
 {
     int tmp_id = getPoseVertexId(vertexId);
-    g2o::VertexSE3 *v = dynamic_cast<g2o::VertexSE3 *>(optimizer.vertex(tmp_id));
+    g2o::VertexSE3Expmap *v = dynamic_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(tmp_id));
     Eigen::Isometry3d tmp_pose = v->estimate();
     Eigen::Affine3d pose = Eigen::Affine3d::Identity();
     pose.linear() = tmp_pose.linear();
