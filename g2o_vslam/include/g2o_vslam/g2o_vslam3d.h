@@ -41,13 +41,8 @@ class g2o_vslam3d
 private:
     g2o::SparseOptimizer optimizer;
     bool isDense;
-    std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver;
-    g2o::OptimizationAlgorithmLevenberg *solver;
     vector<g2o::EdgeProjectXYZ2UV *> edges;
-
-
-    std::map<int,int> oidx_map, vidx_map;
-  
+    std::map<int,int> oidx_map, vidx_map;  
     ///image dimensions
     int height, width;
     /// camera distorsion
@@ -62,11 +57,17 @@ private:
     ros::NodeHandle nh;
 
 public:
+    Eigen::Affine3d odom_pose, T_B_P;
+    Eigen::Quaterniond q_B_P;
     int kf_rate;
     int vidx, oidx, idx;
     double min_depth, max_depth;
      /// current image frame
     int frame;
+    ///flag to indicate a new odometry measurement
+    bool odom_inc;
+    ros::Subscriber odom_sub;
+
     g2o_vslam3d(ros::NodeHandle nh_);
     bool keyframe;
     ///placeholders for previous and current Grayscale/RGB/Depth Image
@@ -78,33 +79,35 @@ public:
     /// ROS Synchronization for RGB and DEPTH msgs
     message_filters::Synchronizer<MySyncPolicy> *ts_sync;
     /// ROS image, depth and camera info topics
-    std::string image_topic, depth_topic, cam_info_topic;
+    std::string image_topic, depth_topic, cam_info_topic, odom_topic;
     void imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &depth_msg);
     /** @fn void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);
      * @brief Camera Info Callback
      */
     void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);
 
-    void addPoseVertex(bool isFixed);
+    void addPoseVertex(Eigen::Affine3d pose, bool isFixed);
     int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint> &kp1, vector<cv::KeyPoint> &kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches);
-    void addObservationVertexWithDepth(cv::Point2f pts,  cv::Mat depthImg,  bool isMarginalized);
+    //void addObservationVertexWithDepth(cv::Point2f pts,  cv::Mat depthImg,  bool isMarginalized);
 
-    void addObservationVertex(cv::Point2f pts,   bool isMarginalized);
-
+    void addObservationVertex(Eigen::Vector3d pos_, bool isMarginalized);
     // edges == factors
-    void addObservationEdges(cv::Point2f pts, int vertexId, int obsId);
+    void addObservationEdges(cv::Point2f pts, Eigen::Matrix2d cov, int vertexId, int obsId);
+    void addPoseEdge(Eigen::Affine3d pose, Eigen::Matrix<double, 6, 6> cov, int vertexId);
 
     void solve(int num_iter, bool verbose);
 
-    void getPoseVertex(int vertexId);
+    Eigen::Affine3d getPoseVertex(int vertexId);
 
-    void getObservationVertex(int obsId);
+    Eigen::Vector3d getObservationVertex(int obsId);
+    Eigen::Vector3d projectuvXYZ(cv::Point2f pts, cv::Mat depthImg);
 
     void getInliers();
     
     int getPoseVertexId(int vidx_);
     int getObservationVertexId(int oidx_);
     void imdepthshow(cv::Mat map);
+    void odomCb(const nav_msgs::OdometryConstPtr &odom_msg);
 
 
 };

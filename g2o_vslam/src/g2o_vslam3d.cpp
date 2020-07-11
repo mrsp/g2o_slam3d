@@ -4,15 +4,15 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
 {
     nh = nh_;
     img_inc = false;
-    frame = 1;
+    frame = 0;
     //Now g2o uses c++11 smart pointer instead of raw pointer
     isDense = false;
     if (isDense)
-        linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
+        auto linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
     else
-        linearSolver = g2o::make_unique<g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>>();
+        auto linearSolver = g2o::make_unique<g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>>();
 
-    solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
+    OptimizationAlgorithmLevenberg solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
     optimizer.setAlgorithm(solver);
     optimizer.setVerbose(false);
     vidx = -1;
@@ -23,10 +23,39 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
     n_p.param<std::string>("image_topic", image_topic, "camera/rgb/image_rect_color");
     n_p.param<std::string>("depth_topic", depth_topic, "camera/depth_registered/sw_registered/image_rect");
     n_p.param<std::string>("cam_info_topic", cam_info_topic, "camera/rgb/camera_info");
+    n_p.param<std::string>("odom_topic", odom_topic, "/kfusion/odom");
     n_p.param<bool>("mm_to_meters", mm_to_meters, false);
     n_p.param<int>("kf_rate", kf_rate, 50);
     n_p.param<double>("max_depth", max_depth, 6.0);
-    n_p.param<double>("min_depth", min_depth, 0.1);
+    n_p.param<double>("min_depth", min_depth, 0.01);
+    std::vector<double> affine_list;
+
+    n_p.getParam("T_B_P", affine_list);
+    if(affine_list.size() == 16)
+    {
+        T_B_P(0, 0) = affine_list[0];
+        T_B_P(0, 1) = affine_list[1];
+        T_B_P(0, 2) = affine_list[2];
+        T_B_P(0, 3) = affine_list[3];
+        T_B_P(1, 0) = affine_list[4];
+        T_B_P(1, 1) = affine_list[5];
+        T_B_P(1, 2) = affine_list[6];
+        T_B_P(1, 3) = affine_list[7];
+        T_B_P(2, 0) = affine_list[8];
+        T_B_P(2, 1) = affine_list[9];
+        T_B_P(2, 2) = affine_list[10];
+        T_B_P(2, 3) = affine_list[11];
+        T_B_P(3, 0) = affine_list[12];
+        T_B_P(3, 1) = affine_list[13];
+        T_B_P(3, 2) = affine_list[14];
+        T_B_P(3, 3) = affine_list[15];
+    }
+    else
+    {
+        T_B_P.Identity();
+    }
+    
+    q_B_P = Quaterniond(T_B_P.linear());
 
     firstImageCb = true;
     keyframe = false;
@@ -56,10 +85,22 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
     optimizer.addParameter(camera);
 
     //Initialize graph with an Identity Affine TF
-    addPoseVertex(true);//Initial Pose is anchored 
+    addPoseVertex(true);//Initial Pose is anchored
+    odom_pose = Eigen::Affine3d::Identity();
 }
 
+void g2o_vslam3d::odomCb(const nav_msgs::OdometryConstPtr &odom_msg)
+{
+    odom_inc = true;
+    Eigen::Vector3d t_ = Vector3d(odom_msg->pose.pose.position.x,odom_msg->pose.pose.position.y,odom_msg->pose.pose.position.z);
+    Quaterniond q_ = Quaterniond(odom_msg->pose.pose.orientation.w, odom_msg->pose.pose.orientation.x,odom_msg->pose.pose.orientation.y,odom_msg->pose.pose.orientation.z);
+    
+    t_ = T_B_P*t_;
+    q_ = q_B_P* q_ * q_B_P.inverse();
+    odom_pose.translation() = t_;
+    odom_pose.linear() = q_.toRotationMatrix();
 
+}
 
 
 int g2o_vslam3d::findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint> &kp1, vector<cv::KeyPoint> &kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches)
@@ -193,7 +234,7 @@ int g2o_vslam3d::getPoseVertexId(int vidx_)
 }
 
 
-void g2o_vslam3d::addPoseVertex(bool isFixed = false)
+void g2o_vslam3d::addPoseVertex(Eigen::Affine3d pose_, bool isFixed = false)
 {
     g2o::VertexSE3Expmap *v = new g2o::VertexSE3Expmap();
     vidx++;
@@ -201,58 +242,106 @@ void g2o_vslam3d::addPoseVertex(bool isFixed = false)
     vidx_map[vidx]=idx;
     v->setId(idx);
     v->setFixed(isFixed);
-    v->setEstimate(g2o::SE3Quat());
+    v->setEstimate(g2o::SE3Quat(pose_.linear(),pose_.translation()));
     optimizer.addVertex(v);
-
-
 }
 
-void g2o_vslam3d::addObservationVertexWithDepth(cv::Point2f pts,  cv::Mat depthImg,  bool isMarginalized = true)
+void g2o_vslam3d::addPoseEdge(Eigen::Affine3d pose, Eigen::Matrix<double, 6, 6> cov, int vertexId)
 {
-        g2o::VertexSBAPointXYZ *v = new g2o::VertexSBAPointXYZ();
+    //add odometry edge
+    g2o::EdgeSE3Expmap *odom=new g2o::EdgeSE3Expmap();
+    // get two poses
+    VertexSE3Expmap* vp0 = dynamic_cast<VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId-1))->second);
+    VertexSE3Expmap* vp1 = dynamic_cast<VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
+    odom->setVertex(0,vp0);
+    odom->setVertex(1,vp1);
+    odom->setInformation(cov);
+    odom->setParameterId(0, 0);
+    odom->setMeasurement(g2o::SE3Quat(pose.linear(),pose.translation()));
+    optimizer.addEdge(odom);
+}
+
+
+// void g2o_vslam3d::addObservationVertexWithDepth(cv::Point2f pts,  cv::Mat depthImg,  bool isMarginalized = true)
+// {
+//         g2o::VertexSBAPointXYZ *v = new g2o::VertexSBAPointXYZ();
+//         oidx++;
+//         idx++;
+//         oidx_map[oidx]=idx;
+//         v->setId(idx);
+//         //Pinhole model to set Initial Point Estimate
+//         double z = 1.0;
+//         int uu = cvRound(pts.y);
+//         int vv = cvRound(pts.x);
+//         if((vv < width &&  vv>=0 && uu >=0 && uu<height))
+//         {
+//             z = depthImg.at<float>(uu, vv);
+//             if (z < min_depth || z > max_depth || z!=z)
+//                z = 1.0;
+//         }
+
+
+//         double x = (pts.x - cx) * z / fx;
+//         double y = (pts.y - cy) * z / fy;
+//         v->setMarginalized(isMarginalized);
+//         v->setEstimate(Eigen::Vector3d(x, y, z));
+//         optimizer.addVertex(v);
+
+// }
+
+Eigen::Vector3d g2o_vslam3d::projectuvXYZ(cv::Point2f pts, cv::Mat depthImg)
+{
+    Eigen::Vector3d ret = Eigen::Vector3d::Zero();
+    //Pinhole model to set Initial Point Estimate
+    double z = 1.0;
+    int uu = cvRound(pts.y);
+    int vv = cvRound(pts.x);
+    if ((vv < width && vv >= 0 && uu >= 0 && uu < height))
+    {
+        z = depthImg.at<float>(uu, vv);
+        if (z < min_depth || z > max_depth || z != z)
+            z = 1.0;
+    }
+
+    ret(0) = (pts.x - cx) * z / fx;
+    ret(1) = (pts.y - cy) * z / fy;
+    ret(2) = z;
+
+    return ret;
+}
+
+// void g2o_vslam3d::addObservationVertex(cv::Point2f pts,   bool isMarginalized = true)
+// {
+//         g2o::VertexSBAPointXYZ *v = new g2o::VertexSBAPointXYZ();
+//         idx++;
+//         oidx++;
+//         oidx_map[oidx] = idx;
+//         v->setId(idx);
+//         //Pinhole model to set Initial Point Estimate
+//         double z = 1;
+//         double x = (pts.x - cx) * z / fx;
+//         double y = (pts.y - cy) * z / fy;
+//         v->setMarginalized(isMarginalized);
+//         v->setEstimate(Eigen::Vector3d(x, y, z));
+//         optimizer.addVertex(v);
+ 
+// }
+void g2o_vslam3d::addObservationVertex(Eigen::Vector3d pos_, bool isMarginalized = true)
+{
+        g2o::VertexSBAPointXYZ* v = new g2o::VertexSBAPointXYZ();
         oidx++;
         idx++;
         oidx_map[oidx]=idx;
         v->setId(idx);
-        //Pinhole model to set Initial Point Estimate
-        double z = 1.0;
-        int uu = cvRound(pts.y);
-        int vv = cvRound(pts.x);
-        if((vv < width &&  vv>=0 && uu >=0 && uu<height))
-        {
-            z = depthImg.at<float>(uu, vv);
-            if (z < min_depth || z > max_depth || z!=z)
-               z = 1.0;
-        }
-
-
-        double x = (pts.x - cx) * z / fx;
-        double y = (pts.y - cy) * z / fy;
+        v->setEstimate(pos_);
         v->setMarginalized(isMarginalized);
-        v->setEstimate(Eigen::Vector3d(x, y, z));
         optimizer.addVertex(v);
-
 }
 
-void g2o_vslam3d::addObservationVertex(cv::Point2f pts,   bool isMarginalized = true)
-{
-        g2o::VertexSBAPointXYZ *v = new g2o::VertexSBAPointXYZ();
-        idx++;
-        oidx++;
-        oidx_map[oidx] = idx;
-        v->setId(idx);
-        //Pinhole model to set Initial Point Estimate
-        double z = 1;
-        double x = (pts.x - cx) * z / fx;
-        double y = (pts.y - cy) * z / fy;
-        v->setMarginalized(isMarginalized);
-        v->setEstimate(Eigen::Vector3d(x, y, z));
-        optimizer.addVertex(v);
- 
-}
+
 
 // edges == factors
-void g2o_vslam3d::addObservationEdges(cv::Point2f pts, int vertexId, int obsId)
+void g2o_vslam3d::addObservationEdges(cv::Point2f pts, Eigen::Matrix2d cov,int vertexId, int obsId)
 {
         g2o::EdgeProjectXYZ2UV *edge = new g2o::EdgeProjectXYZ2UV();
         g2o::VertexSBAPointXYZ* vp0 = dynamic_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertices().find(getObservationVertexId(obsId))->second);
@@ -263,7 +352,7 @@ void g2o_vslam3d::addObservationEdges(cv::Point2f pts, int vertexId, int obsId)
 
 
         edge->setMeasurement(Eigen::Vector2d(pts.x, pts.y));
-        edge->setInformation(Eigen::Matrix2d::Identity());
+        edge->setInformation(cov);
         edge->setParameterId(0, 0);
         edge->setRobustKernel(new g2o::RobustKernelHuber());
         optimizer.addEdge(edge);
@@ -277,21 +366,26 @@ void g2o_vslam3d::solve(int num_iter = 10, bool verbose = false)
     optimizer.optimize(num_iter);
 }
 
-void g2o_vslam3d::getPoseVertex(int vertexId)
+Eigen::Affine3d g2o_vslam3d::getPoseVertex(int vertexId)
 {
     int tmp_id = getPoseVertexId(vertexId);
     g2o::VertexSE3Expmap *v = dynamic_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(tmp_id));
-    Eigen::Isometry3d pose = v->estimate();
-    cout << "Pose=" << endl << pose.matrix() << endl;
+    Eigen::Isometry3d tmp_pose = v->estimate();
+    Eigen::Affine3d pose = Eigen::Affine3d::Identity();
+    pose.linear() = tmp_pose.linear();
+    pose.translation() = tmp_pose.translation();
+    //cout << "Pose=" << endl << pose.matrix() << endl;
+    return pose;
 }
 
-void g2o_vslam3d::getObservationVertex(int obsId)
+Eigen::Vector3d g2o_vslam3d::getObservationVertex(int obsId)
 {
     int tmp_id = getObservationVertexId(obsId);
     g2o::VertexSBAPointXYZ *v = dynamic_cast<g2o::VertexSBAPointXYZ *>(optimizer.vertex(tmp_id));
     Eigen::Vector3d pos = v->estimate();
-    cout << "vertex id " << tmp_id << ", pos = ";
-    cout << pos(0) << "," << pos(1) << "," << pos(2) << endl;
+    //cout << "vertex id " << tmp_id << ", pos = ";
+    //cout << pos(0) << "," << pos(1) << "," << pos(2) << endl;
+    return pos;
 }
 
 void g2o_vslam3d::getInliers()
