@@ -54,8 +54,8 @@ int main(int argc, char *argv[])
     
     ros::NodeHandle n_p("~");
     double image_freq, odom_freq;
-    n_p.param<double>("image_freq", image_freq, 100.0);
-    n_p.param<double>("odom_freq", odom_freq, 100.0);
+    n_p.param<double>("image_freq", image_freq, 30.0);
+    n_p.param<double>("odom_freq", odom_freq, 30.0);
     double freq = fmax(image_freq,odom_freq);
     int keyframes = 0;
     int max_num_kfs;

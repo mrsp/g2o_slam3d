@@ -25,6 +25,10 @@
 #include <g2o/solvers/dense/linear_solver_dense.h>
 #include <g2o/types/slam3d/se3quat.h>
 #include <g2o/types/sba/types_six_dof_expmap.h>
+#include <sensor_msgs/PointCloud.h>
+#include <nav_msgs/Path.h>
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Point32.h>
 using namespace std;
 
 
@@ -48,8 +52,8 @@ int main(int argc, char *argv[])
 
     ros::NodeHandle n_p("~");
     double image_freq, odom_freq;
-    n_p.param<double>("image_freq", image_freq, 100.0);
-    n_p.param<double>("odom_freq", odom_freq, 100.0);
+    n_p.param<double>("image_freq", image_freq, 30.0);
+    n_p.param<double>("odom_freq", odom_freq, 30.0);
     double freq = fmax(image_freq,odom_freq);
     int keyframes = 0;
     int max_num_kfs;
@@ -63,7 +67,6 @@ int main(int argc, char *argv[])
             ros::spinOnce();
             rate.sleep();
             continue;
-
         }
        
         
@@ -119,14 +122,16 @@ int main(int argc, char *argv[])
         Eigen::Affine3d pose_1  =  bad.getPoseVertex(bad.vidx);
         Eigen::Vector3d pos1, rel_pos1;
         // edges == factors
+       
         for (unsigned int i = 0; i < corr.size(); i++)
         {
             rel_pos1 = bad.projectuvXYZ(pts2[i], bad.currDepthImage);
             pos1 = pose_1 * rel_pos1;
             bad.addObservationVertex(pos1,true);
-            bad.addObservationEdges(pts1[i], Eigen::Matrix2d::Identity()*0.5, bad.vidx-1, bad.oidx);
-            bad.addObservationEdges(pts2[i], Eigen::Matrix2d::Identity()*0.5, bad.vidx, bad.oidx);
+            bad.addObservationEdges(pts1[i], Eigen::Matrix2d::Identity()*0.01, bad.vidx-1, bad.oidx);
+            bad.addObservationEdges(pts2[i], Eigen::Matrix2d::Identity()*0.01, bad.vidx, bad.oidx);
         }
+        
         bad.prevImage =  bad.currImage.clone();
         bad.prevDepthImage =  bad.currDepthImage.clone();
         bad.keyframe = false;
@@ -139,7 +144,7 @@ int main(int argc, char *argv[])
         rate.sleep();
     }
 
-    bad.solve(10, true); //10 iterations in G2O and verbose
+    bad.solve(100, true); //10 iterations in G2O and verbose
     cout << " NUM OF POSE VERTICES " << bad.vidx << endl;
     cout << " NUM OF LANDMARK VERTICES " << bad.oidx << endl;
     

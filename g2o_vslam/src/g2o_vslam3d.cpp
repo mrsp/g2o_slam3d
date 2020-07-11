@@ -6,13 +6,13 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
     img_inc = false;
     frame = 0;
     //Now g2o uses c++11 smart pointer instead of raw pointer
-    isDense = false;
-    if (isDense)
-        auto linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
-    else
+    //isDense = false;
+    //if (isDense)
+    //    auto linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
+    //else
         auto linearSolver = g2o::make_unique<g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>>();
 
-    OptimizationAlgorithmLevenberg solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
     optimizer.setAlgorithm(solver);
     optimizer.setVerbose(false);
     vidx = -1;
@@ -55,12 +55,13 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
         T_B_P.Identity();
     }
     
-    q_B_P = Quaterniond(T_B_P.linear());
+    q_B_P = Eigen::Quaterniond(T_B_P.linear());
 
     firstImageCb = true;
     keyframe = false;
     image_sub.subscribe(nh, image_topic, 1);
     depth_sub.subscribe(nh, depth_topic, 1);
+    odom_sub = nh.subscribe(odom_topic, 1000, &g2o_vslam3d::odomCb, this);
 
     ts_sync = new message_filters::Synchronizer<MySyncPolicy>(MySyncPolicy(10), image_sub, depth_sub);
 
@@ -85,21 +86,21 @@ g2o_vslam3d::g2o_vslam3d(ros::NodeHandle nh_)
     optimizer.addParameter(camera);
 
     //Initialize graph with an Identity Affine TF
-    addPoseVertex(true);//Initial Pose is anchored
     odom_pose = Eigen::Affine3d::Identity();
+    addPoseVertex(odom_pose,true);//Initial Pose is anchored
+
 }
 
 void g2o_vslam3d::odomCb(const nav_msgs::OdometryConstPtr &odom_msg)
 {
     odom_inc = true;
-    Eigen::Vector3d t_ = Vector3d(odom_msg->pose.pose.position.x,odom_msg->pose.pose.position.y,odom_msg->pose.pose.position.z);
-    Quaterniond q_ = Quaterniond(odom_msg->pose.pose.orientation.w, odom_msg->pose.pose.orientation.x,odom_msg->pose.pose.orientation.y,odom_msg->pose.pose.orientation.z);
+    Eigen::Vector3d t_ = Eigen::Vector3d(odom_msg->pose.pose.position.x,odom_msg->pose.pose.position.y,odom_msg->pose.pose.position.z);
+    Eigen::Quaterniond q_ = Eigen::Quaterniond(odom_msg->pose.pose.orientation.w, odom_msg->pose.pose.orientation.x,odom_msg->pose.pose.orientation.y,odom_msg->pose.pose.orientation.z);
     
     t_ = T_B_P*t_;
     q_ = q_B_P* q_ * q_B_P.inverse();
     odom_pose.translation() = t_;
     odom_pose.linear() = q_.toRotationMatrix();
-
 }
 
 
@@ -169,7 +170,6 @@ void g2o_vslam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const 
         if (firstImageCb)
         {
         
-                ROS_INFO("Image and Depth Cb");
                 //prevImage = cv_ptr->image;
                 if (cv_ptr->image.channels() == 3)
                 {
@@ -186,7 +186,7 @@ void g2o_vslam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const 
         else
         {
         
-                ROS_INFO("Image and Depth Cb");
+                //ROS_INFO("Image and Depth Cb");
                 currImageRGB = cv_ptr->image;
                 if (cv_ptr->image.channels() == 3)
                 {
@@ -198,8 +198,10 @@ void g2o_vslam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const 
                 }
                 currDepthImage = cv_depth_ptr->image;
                 if (!keyframe)
+                {
                     keyframe = true;
-            
+                    ROS_INFO("Keyframe");
+                }
         }
     }
     frame++;
@@ -236,7 +238,7 @@ int g2o_vslam3d::getPoseVertexId(int vidx_)
 
 void g2o_vslam3d::addPoseVertex(Eigen::Affine3d pose_, bool isFixed = false)
 {
-    g2o::VertexSE3Expmap *v = new g2o::VertexSE3Expmap();
+    g2o::VertexSE3 *v = new g2o::VertexSE3();
     vidx++;
     idx++;
     vidx_map[vidx]=idx;
@@ -249,10 +251,10 @@ void g2o_vslam3d::addPoseVertex(Eigen::Affine3d pose_, bool isFixed = false)
 void g2o_vslam3d::addPoseEdge(Eigen::Affine3d pose, Eigen::Matrix<double, 6, 6> cov, int vertexId)
 {
     //add odometry edge
-    g2o::EdgeSE3Expmap *odom=new g2o::EdgeSE3Expmap();
+    g2o::EdgeSE3 *odom=new g2o::EdgeSE3();
     // get two poses
-    VertexSE3Expmap* vp0 = dynamic_cast<VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId-1))->second);
-    VertexSE3Expmap* vp1 = dynamic_cast<VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
+    g2o::VertexSE3* vp0 = dynamic_cast<g2o::VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId-1))->second);
+    g2o::VertexSE3* vp1 = dynamic_cast<g2o::VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
     odom->setVertex(0,vp0);
     odom->setVertex(1,vp1);
     odom->setInformation(cov);
@@ -345,7 +347,7 @@ void g2o_vslam3d::addObservationEdges(cv::Point2f pts, Eigen::Matrix2d cov,int v
 {
         g2o::EdgeProjectXYZ2UV *edge = new g2o::EdgeProjectXYZ2UV();
         g2o::VertexSBAPointXYZ* vp0 = dynamic_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertices().find(getObservationVertexId(obsId))->second);
-        g2o::VertexSE3Expmap* vp1 = dynamic_cast<g2o::VertexSE3Expmap*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
+        g2o::VertexSE3* vp1 = dynamic_cast<g2o::VertexSE3*>(optimizer.vertices().find(getPoseVertexId(vertexId))->second);
         edge->setVertex(0, vp0);
         edge->setVertex(1, vp1);
 
@@ -369,7 +371,7 @@ void g2o_vslam3d::solve(int num_iter = 10, bool verbose = false)
 Eigen::Affine3d g2o_vslam3d::getPoseVertex(int vertexId)
 {
     int tmp_id = getPoseVertexId(vertexId);
-    g2o::VertexSE3Expmap *v = dynamic_cast<g2o::VertexSE3Expmap *>(optimizer.vertex(tmp_id));
+    g2o::VertexSE3 *v = dynamic_cast<g2o::VertexSE3 *>(optimizer.vertex(tmp_id));
     Eigen::Isometry3d tmp_pose = v->estimate();
     Eigen::Affine3d pose = Eigen::Affine3d::Identity();
     pose.linear() = tmp_pose.linear();
