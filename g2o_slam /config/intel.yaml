@@ -1,7 +1,7 @@
-#image_topic: "/camera/color/image_raw"
+image_topic: "/camera/color/image_raw"
 cam_info_topic: "/camera/aligned_depth_to_color/camera_info"
 depth_topic: "/camera/aligned_depth_to_color/image_raw"
-image_topic: "/camera/color/image_rect_color"
+#image_topic: "/camera/color/image_rect_color"
 mm_to_meters: true
 image_freq: 30
 min_depth: 0.01

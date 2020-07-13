@@ -1,7 +1,7 @@
-#image_topic: "/camera/color/image_raw"
+image_topic: "/camera/color/image_raw"
 cam_info_topic: "/camera/aligned_depth_to_color/camera_info"
 depth_topic: "/camera/aligned_depth_to_color/image_raw"
-image_topic: "/camera/color/image_rect_color"
+#image_topic: "/camera/color/image_rect_color"
 mm_to_meters: true
 image_freq: 30
 min_depth: 0.01
@@ -13,5 +13,5 @@ odom_topic: "/kfusion/odom"
 #TF FROM EXTERNAL Odometry TO CAMERA FRAME
 T_B_P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1] 
 #T_B_P: [0, 1, 0, 0, -1, 0, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1]
-max_num_kfs: 39
+max_num_kfs: 35 # 39
 kf_rate: 30

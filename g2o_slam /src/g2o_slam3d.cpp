@@ -133,7 +133,7 @@ int g2o_slam3d::findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2
             matches.push_back(matches_knn[i][0]);
     }
 
-    if (matches.size() <= 20)
+    if (matches.size() <= 150)
         return false;
 
     for (auto m : matches)
@@ -267,7 +267,7 @@ void g2o_slam3d::addObservationVertex(Eigen::Vector3d pos_, bool isMarginalized 
         oidx_map[oidx]=idx;
         v->setId(idx);
         v->setEstimate(pos_);
-        v->setMarginalized(true);
+        v->setMarginalized(isMarginalized);
         optimizer.addVertex(v);
 
 }
@@ -277,11 +277,11 @@ Eigen::Vector3d g2o_slam3d::projectuvXYZ(cv::Point2f pts, cv::Mat depthImg)
     Eigen::Vector3d ret = Eigen::Vector3d::Zero();
     //Pinhole model to set Initial Point Estimate
     double z = 1.0;
-    int uu = cvRound(pts.y);
-    int vv = cvRound(pts.x);
-    if ((vv < width && vv >= 0 && uu >= 0 && uu < height))
+    int uu = cvRound(pts.x);
+    int vv = cvRound(pts.y);
+    if ((uu < width && uu >= 0 && vv >= 0 && vv < height))
     {
-        z = depthImg.at<float>(uu, vv);
+        z = depthImg.at<float>(vv, uu);
         if (z < min_depth || z > max_depth || z != z)
             z = 1.0;
     }

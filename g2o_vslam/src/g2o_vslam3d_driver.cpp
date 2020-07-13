@@ -122,7 +122,6 @@ int main(int argc, char *argv[])
         Eigen::Affine3d pose_1  =  bad.getPoseVertex(bad.vidx);
         Eigen::Vector3d pos1, rel_pos1;
         // edges == factors
-        
         for (unsigned int i = 0; i < corr.size(); i++)
         {
             rel_pos1 = bad.projectuvXYZ(pts2[i], bad.currDepthImage);
