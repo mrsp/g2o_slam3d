@@ -22,16 +22,16 @@ These instructions will get you a copy of the project up and running on your loc
 <br>(To launch the g2o Bundle Adjustment with 2D RGB features and an (optional) odometry  measurements)
 
 
-## Example of 3D-VSLAM 
+## Example of 3D VSLAM 
 <p float="center">
   <img src="img/3D.png" width="400" />
-  <img src="img/scene.png" width="400" /> 
+  <img src="img/planeInScene.png" width="400" /> 
 </p>
 
 ## Example of BA
 <p float="center">
   <img src="img/BA.png" width="400" />
-  <img src="img/scene.png" width="400" /> 
+  <img src="img/planeInScene.png" width="400" /> 
 </p>
 
 
