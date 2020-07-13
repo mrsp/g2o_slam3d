@@ -1,4 +1,4 @@
-# g2o_slam3d
+# g2o_slam3d: A ROS-C++ wrapper for Visual SLAM with the G2O Library
 
 ## Getting Started
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
@@ -23,12 +23,14 @@ These instructions will get you a copy of the project up and running on your loc
 
 
 ## Example of 3D VSLAM 
+Red is the Visual Odometry, Green is the Keyframes trajectory, frames indicate the estimated poses of Keyframes
 <p float="center">
   <img src="img/3D.png" width="400" />
   <img src="img/planeInScene.png" width="400" /> 
 </p>
 
 ## Example of BA
+Red is the Visual Odometry, Green is the Keyframes trajectory, frames indicate the estimated poses of Keyframes
 <p float="center">
   <img src="img/BA.png" width="400" />
   <img src="img/planeInScene.png" width="400" /> 
