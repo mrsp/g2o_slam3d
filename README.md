@@ -1,4 +1,4 @@
-# g2o_slam3d: A ROS/C++ Visual SLAM with the g2o Library
+# g2o_slam3d: A ROS/C++ Visual SLAM with g2o 
 
 ## Getting Started
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
