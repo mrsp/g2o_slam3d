@@ -132,8 +132,8 @@ int main(int argc, char *argv[])
             pos1 = pose_1 * rel_pos1;
 
             bad.addObservationVertex(pos1,true);
-            bad.addObservationEdges(rel_pos0, Eigen::Matrix3d::Identity()*0.01, bad.vidx-1, bad.oidx);
-            bad.addObservationEdges(rel_pos1, Eigen::Matrix3d::Identity()*0.01, bad.vidx, bad.oidx);
+            bad.addObservationEdges(rel_pos0, Eigen::Matrix3d::Identity()*0.005, bad.vidx-1, bad.oidx);
+            bad.addObservationEdges(rel_pos1, Eigen::Matrix3d::Identity()*0.005, bad.vidx, bad.oidx);
         }
         bad.prevImage =  bad.currImage.clone();
         bad.prevDepthImage =  bad.currDepthImage.clone();

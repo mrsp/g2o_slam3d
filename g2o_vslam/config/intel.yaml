@@ -13,5 +13,5 @@ odom_topic: "/kfusion/odom"
 #TF FROM EXTERNAL Odometry TO CAMERA FRAME
 T_B_P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1] 
 #T_B_P: [0, 1, 0, 0, -1, 0, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1]
-max_num_kfs: 35 # 39
-kf_rate: 30
+max_num_kfs: 28 # 39
+kf_rate: 15

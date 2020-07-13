@@ -133,7 +133,7 @@ int g2o_slam3d::findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2
             matches.push_back(matches_knn[i][0]);
     }
 
-    if (matches.size() <= 150)
+    if (matches.size() <= 120)
         return false;
 
     for (auto m : matches)
