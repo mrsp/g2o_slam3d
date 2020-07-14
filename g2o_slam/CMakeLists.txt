@@ -18,13 +18,13 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 add_message_files(
-FILES
-boolStamped.msg
+    FILES
+    boolStamped.msg
 )
 
 generate_messages(
-DEPENDENCIES
-std_msgs
+    DEPENDENCIES
+    std_msgs
 )
 
 
@@ -59,8 +59,9 @@ include_directories( ${EIGEN3_INCLUDE_DIR} ${CHOLMOD_INCLUDE_DIR}    ${SUITESPAR
 catkin_package(
  INCLUDE_DIRS include
   LIBRARIES g2o_slam
-  CATKIN_DEPENDS cv_bridge geometry_msgs image_transport message_filters nav_msgs roscpp sensor_msgs
-#  DEPENDS system_lib
+  CATKIN_DEPENDS 
+  cv_bridge 
+  geometry_msgs image_transport message_filters nav_msgs roscpp sensor_msgs message_runtime
 )
 
 ###########

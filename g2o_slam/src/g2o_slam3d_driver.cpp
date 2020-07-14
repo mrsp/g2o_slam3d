@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
         tmp_pose.pose = opt_pose_msg.pose.pose;
         tmp_pose.header = opt_pose_msg.header;
 		opt_odom_path_msg.poses.push_back(tmp_pose);
-        ros::Duration(0.25).sleep();
+        //ros::Duration(0.25).sleep();
     }
     opt_odom_path_msg.header = opt_pose_msg.header;
     opt_odom_path_pub.publish(opt_odom_path_msg);
@@ -191,8 +191,11 @@ int main(int argc, char *argv[])
     pt_msg.header.frame_id = "odom";
     opt_pt_pub.publish(pt_msg);
 
+    ros::Duration(0.25).sleep();
+
     cout << " Exiting... "<< endl;
 
+    
 
     return 0;
 }
