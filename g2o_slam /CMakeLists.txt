@@ -14,8 +14,18 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   roscpp
   sensor_msgs
+  message_generation
 )
 
+add_message_files(
+FILES
+boolStamped.msg
+)
+
+generate_messages(
+DEPENDENCIES
+std_msgs
+)
 
 
 

@@ -64,13 +64,14 @@ int main(int argc, char *argv[])
     static ros::Rate rate(2.0 * freq);
     while (ros::ok())
     {
+        
         if (!bad.keyframe)
         {
             ros::spinOnce();
             rate.sleep();
             continue;
         }
-       
+
         // Keypoints placeholder
         vector<cv::Point2f> pts1, pts2;
         vector<cv::DMatch> corr;
@@ -85,6 +86,8 @@ int main(int argc, char *argv[])
             rate.sleep();
             continue;
         }
+
+
 
         cout << "Found " << corr.size() << " matches" << endl;
         // cv::Mat img_matched;

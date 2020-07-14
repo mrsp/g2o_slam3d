@@ -75,7 +75,11 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
     image_sub.subscribe(nh, image_topic, 1);
     depth_sub.subscribe(nh, depth_topic, 1);
     odom_sub = nh.subscribe(odom_topic, 1000, &g2o_slam3d::odomCb, this);
-
+    //image_pub = it.advertise("g2o/rgb/image_raw", 1);
+    image_pub =  nh.advertise<sensor_msgs::Image>("g2o/rgb/image_raw",1);
+    //depth_pub = it.advertise("g2o/depth/image_raw", 1);
+    depth_pub = nh.advertise<sensor_msgs::Image>("g2o/depth/image_raw",1);
+    kf_pub =nh.advertise<g2o_slam::boolStamped>("g2o/isKeyframe",10);
     ts_sync = new message_filters::Synchronizer<MySyncPolicy>(MySyncPolicy(10), image_sub, depth_sub);
 
     ts_sync->registerCallback(boost::bind(&g2o_slam3d::imageDepthCb, this, _1, _2));
@@ -180,7 +184,6 @@ void g2o_slam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const s
         if (firstImageCb)
         {
         
-                ROS_INFO("Image and Depth Cb");
                 //prevImage = cv_ptr->image;
                 if (cv_ptr->image.channels() == 3)
                 {
@@ -197,7 +200,6 @@ void g2o_slam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const s
         else
         {
         
-                ROS_INFO("Image and Depth Cb");
                 currImageRGB = cv_ptr->image;
                 if (cv_ptr->image.channels() == 3)
                 {
@@ -210,9 +212,21 @@ void g2o_slam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const s
                 currDepthImage = cv_depth_ptr->image;
                 if (!keyframe)
                     keyframe = true;
-            
+
+              
         }
     }
+
+    cv_ptr->header.stamp = ros::Time::now();
+    cv_ptr->header.seq = frame;
+    cv_depth_ptr->header.stamp = cv_ptr->header.stamp;
+    cv_depth_ptr->header.seq = cv_ptr->header.seq;
+    bool_msg.header.stamp = cv_ptr->header.stamp;
+    bool_msg.header.seq = cv_ptr->header.seq;
+    bool_msg.indicator.data = keyframe;
+    image_pub.publish(cv_ptr->toImageMsg());
+    depth_pub.publish(cv_depth_ptr->toImageMsg());
+    kf_pub.publish(bool_msg);
     frame++;
 }
 

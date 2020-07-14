@@ -40,6 +40,8 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
 #include <eigen3/Eigen/Dense>
+#include <g2o_slam/boolStamped.h>
+
 #include <fstream>
 #include <map>
 using namespace std;
@@ -55,7 +57,7 @@ private:
 
 
     std::map<int,int> oidx_map, vidx_map;
-  
+    g2o_slam::boolStamped bool_msg;
     ///image dimensions
     int height, width;
     /// camera distorsion
@@ -68,7 +70,9 @@ private:
     bool  mm_to_meters, isFirst;
     /// ROS nodehanlder
     ros::NodeHandle nh;
-
+    //image_transport::ImageTransport it;
+    //image_transport::Publisher image_pub;// depth_pub;
+    ros::Publisher kf_pub, image_pub, depth_pub;
 public:
     Eigen::Affine3d odom_pose, T_B_P;
     Eigen::Quaterniond q_B_P;
