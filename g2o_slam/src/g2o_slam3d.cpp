@@ -1,22 +1,17 @@
 #include <g2o_slam/g2o_slam3d.h>
+#include <sensor_msgs/PointCloud.h>
 
-g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
+g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_,double rate,int max_kfs_num)
+    :freq(rate),
+    max_num_kfs(max_kfs_num),
+    exit(false)
 {
     nh = nh_;
-    img_inc = false;
-    frame = 0;
-    //Now g2o uses c++11 smart pointer instead of raw pointer
-    // std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType> linearSolver;
-    // bool _isDense = false;
-    // if(_isDense)
-    //     linearSolver = g2o::make_unique<g2o::LinearSolverDense<g2o::BlockSolver_6_3::PoseMatrixType>>();
-    // else
-    //     linearSolver = g2o::make_unique<g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType>>();
+    processing_frame = 0;
+    send_frame_num =0;
+    intput_frame = 0;
     
-    // g2o::OptimizationAlgorithmLevenberg *solver =  new OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
-    // //g2o::OptimizationAlgorithmGaussNewton *solver =  new OptimizationAlgorithmGaussNewton(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
-
-
+    
     // create the linear solver
     auto linearSolver = g2o::make_unique<LinearSolverCSparse<BlockSolverX::PoseMatrixType>>();
 
@@ -24,10 +19,11 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
     auto blockSolver = g2o::make_unique<BlockSolverX>(std::move(linearSolver));
     OptimizationAlgorithmLevenberg* solver = new OptimizationAlgorithmLevenberg(std::move(blockSolver));
 
-
+    opt_odom_pub = nh.advertise<nav_msgs::Odometry>("vipGPU/odom", 1000);
+    opt_pt_pub = nh.advertise<sensor_msgs::PointCloud>("vipGPU/pointcloud", 100);
+    opt_odom_path_pub = nh.advertise<nav_msgs::Path>("vipGPU/odom/path", 100);
+    
     optimizer.setAlgorithm(solver);
-
-
 
     vidx = -1;
     idx = -1;
@@ -69,20 +65,18 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
     }
     
     q_B_P = Quaterniond(T_B_P.linear());
-
-    firstImageCb = true;
-    keyframe = false;
+    
+    //subscribers
     image_sub.subscribe(nh, image_topic, 1);
     depth_sub.subscribe(nh, depth_topic, 1);
     odom_sub = nh.subscribe(odom_topic, 1000, &g2o_slam3d::odomCb, this);
-    //image_pub = it.advertise("g2o/rgb/image_raw", 1);
-    image_pub =  nh.advertise<sensor_msgs::Image>("g2o/rgb/image_raw",1);
-    //depth_pub = it.advertise("g2o/depth/image_raw", 1);
+    ts_sync = new message_filters::Synchronizer<MySyncPolicy>(MySyncPolicy(10), image_sub, depth_sub);
+    
+    //publishers
+    image_pub =  nh.advertise<sensor_msgs::Image>("g2o/rgb/image_raw",1);    
     depth_pub = nh.advertise<sensor_msgs::Image>("g2o/depth/image_raw",1);
     kf_pub =nh.advertise<g2o_slam::boolStamped>("g2o/isKeyframe",10);
-    ts_sync = new message_filters::Synchronizer<MySyncPolicy>(MySyncPolicy(10), image_sub, depth_sub);
-
-    ts_sync->registerCallback(boost::bind(&g2o_slam3d::imageDepthCb, this, _1, _2));
+    
 
     // set Camera Intrinsics
     ROS_INFO("Waiting camera info");
@@ -103,22 +97,194 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
     optimizer.addParameter(cameraOffset);
     //Initialize graph with an Identity Affine TF
     addPoseVertex(Eigen::Affine3d::Identity(),true);//Initial Pose is anchored 
-    odom_pose = Eigen::Affine3d::Identity();
+    //odom_pose = Eigen::Affine3d::Identity();
+    
+    ts_sync->registerCallback(boost::bind(&g2o_slam3d::imageDepthCb, this, _1, _2));
+
+}
+
+
+/** Main Loop **/
+void g2o_slam3d::run()
+{
+    output_thread = std::thread([this]{this->outputPublishThread();});
+    processing_thread = std::thread([this]{this->processingThread();});
+    ros::spin();
+}
+
+void g2o_slam3d::outputPublishThread()
+{
+    ros::Rate rate(4.0*freq);
+    while (ros::ok() && !exit)
+    {
+        if(input_data.size() > 0 && is_key_frame_data.size() > 0)
+        {
+            ImageData img=input_data.pop();
+            g2o_slam::boolStamped bool_msg=is_key_frame_data.pop();
+            
+            img.rgb->header.stamp = ros::Time::now();            
+            img.rgb->header.seq = send_frame_num;
+            img.depth->header.stamp = img.rgb->header.stamp;
+            img.depth->header.seq = send_frame_num;
+            
+            bool_msg.header.stamp = img.rgb->header.stamp;
+            bool_msg.header.seq = send_frame_num;
+            
+            image_pub.publish(img.rgb->toImageMsg());
+            depth_pub.publish(img.depth->toImageMsg());
+            kf_pub.publish(bool_msg);
+            
+            send_frame_num++;
+        }
+        
+        ros::spinOnce();
+        rate.sleep();
+    }
+}
+
+void g2o_slam3d::processingThread()
+{
+    //cv::Mat currImage, prevImage, currImageRGB, prevDepthImage, currDepthImage;
+    
+    static cv::Mat currImage, prevImage, currDepthImage, prevDepthImage;
+    bool firstTime=true;
+    ros::Rate rate(4.0*freq);
+    while (ros::ok() && !exit)
+    {        
+        if(key_frames_data.size() == 0)
+        {
+            ros::spinOnce();
+            rate.sleep();
+            continue;
+        }
+        
+        std::cout<<"Key frame:"<<processing_frame<<" "<<std::endl;
+        
+        ImageData img=key_frames_data.pop();        
+        if(firstTime)
+        {
+            std::cout<<"First time"<<std::endl;
+            if (img.rgb->image.channels() == 3)
+            {
+                cvtColor(img.rgb->image, currImage, cv::COLOR_BGR2GRAY);
+            }
+            else
+            {
+                currImage = img.rgb->image.clone();
+            }
+            currDepthImage = img.depth->image.clone();
+            firstTime=false;
+        }
+        else
+        {
+            vector<cv::Point2f> pts1, pts2;
+            vector<cv::DMatch> corr;
+            vector<cv::KeyPoint> kpts1, kpts2;
+         
+            cv::swap(currImage, prevImage);
+            cv::swap(currDepthImage, prevDepthImage);
+            
+            cvtColor(img.rgb->image, currImage, cv::COLOR_BGR2GRAY);
+            currDepthImage = img.depth->image.clone();
+            
+            if (doFindCorrespondingPoints(prevImage, currImage, kpts1, kpts2, pts1, pts2, corr) == false)
+            {
+                cout << "no matches found" << endl;  
+            }
+            else
+            {
+                bool has_odom;
+                Eigen::Affine3d odom;
+                if(odom_data.size()>0)
+                {
+                    odom=odom_data.backAndClear();
+                    has_odom=true;
+                }
+                else
+                {
+                    has_odom=false;
+                }
+                    
+                addMatchesToGraph(corr,odom,pts1,pts2,prevDepthImage,currDepthImage,true);
+            }            
+        }
+        
+      
+        if(processing_frame>=max_num_kfs)
+        {
+            optimize();
+            ros::Duration(0.25).sleep();
+            exit=true;            
+        }
+                          
+        processing_frame++;
+        ros::spinOnce();
+        rate.sleep();
+    }
+
+}
+
+void g2o_slam3d::addMatchesToGraph(const vector<cv::DMatch> &corr,
+                                   Eigen::Affine3d &odom_pose,
+                                   const vector<cv::Point2f> &pts1,
+                                   const vector<cv::Point2f> &pts2,
+                                   const cv::Mat &prevDepthImage,
+                                   const cv::Mat &currDepthImage,
+                                   bool odom_inc)
+{    
+    cout << "Found " << corr.size() << " matches" << endl;
+
+    Eigen::Affine3d pose_0 = getPoseVertex(vidx);
+    if(odom_inc)
+    {
+        Eigen::Affine3d rel_odom_pose =   pose_0.inverse() * odom_pose;
+        addPoseVertex(odom_pose,false);
+        addPoseEdge(rel_odom_pose, Eigen::Matrix<double, 6, 6>::Identity(), vidx);
+        //cout<<"Got New Odom "<<endl<<odom_pose.matrix()<<endl;
+        //cout<<"Got New REL Odom "<<endl<<rel_odom_pose.matrix()<<endl;
+
+    }
+    else
+    {
+        addPoseVertex(Eigen::Affine3d::Identity(), false); //Unknown pose;
+    }
+
+    Eigen::Affine3d pose_1  =  getPoseVertex(vidx);
+    Eigen::Vector3d pos1, rel_pos1, rel_pos0;
+    // edges == factors
+    for (unsigned int i = 0; i < corr.size(); i++)
+    {
+        rel_pos0 = projectuvXYZ(pts1[i], prevDepthImage);
+        rel_pos1 = projectuvXYZ(pts2[i], currDepthImage);
+        pos1 = pose_1 * rel_pos1;
+
+        addObservationVertex(pos1,true);
+        addObservationEdges(rel_pos0, Eigen::Matrix3d::Identity()*0.005, vidx-1, oidx);
+        addObservationEdges(rel_pos1, Eigen::Matrix3d::Identity()*0.005, vidx, oidx);
+    }
 }
 
 void g2o_slam3d::odomCb(const nav_msgs::OdometryConstPtr &odom_msg)
 {
-    odom_inc = true;
     Eigen::Vector3d t_ = Vector3d(odom_msg->pose.pose.position.x,odom_msg->pose.pose.position.y,odom_msg->pose.pose.position.z);
     Quaterniond q_ = Quaterniond(odom_msg->pose.pose.orientation.w, odom_msg->pose.pose.orientation.x,odom_msg->pose.pose.orientation.y,odom_msg->pose.pose.orientation.z);
     
     t_ = T_B_P*t_;
     q_ = q_B_P* q_ * q_B_P.inverse();
+    Eigen::Affine3d odom_pose;
     odom_pose.translation() = t_;
     odom_pose.linear() = q_.toRotationMatrix();
-
+    
+    odom_data.push(odom_pose);
 }
-int g2o_slam3d::findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint> &kp1, vector<cv::KeyPoint> &kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches)
+
+bool g2o_slam3d::doFindCorrespondingPoints(const cv::Mat &img1, 
+                                        const cv::Mat &img2, 
+                                        vector<cv::KeyPoint> &kp1, 
+                                        vector<cv::KeyPoint> &kp2, 
+                                        vector<cv::Point2f> &points1, 
+                                        vector<cv::Point2f> &points2, 
+                                        vector<cv::DMatch> &matches)
 {
     cv::Ptr<cv::Feature2D> fdetector = cv::ORB::create(5000);
 
@@ -147,87 +313,47 @@ int g2o_slam3d::findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2
     }
 
     return true;
-
 }
 
-void g2o_slam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &depth_msg)
+void g2o_slam3d::imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg,
+                              const sensor_msgs::ImageConstPtr &depth_msg)
 {
-
-    cv_bridge::CvImagePtr cv_ptr;
-    img_inc = true;
+    ImageData data;
     try
     {
-        cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
+        data.rgb = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
     }
     catch (cv_bridge::Exception &e)
     {
         ROS_ERROR("cv_bridge RGB exception: %s", e.what());
         return;
     }
-
-    cv_bridge::CvImagePtr cv_depth_ptr;
+    
     try
     {
-        cv_depth_ptr = cv_bridge::toCvCopy(depth_msg, sensor_msgs::image_encodings::TYPE_32FC1);
+        data.depth = cv_bridge::toCvCopy(depth_msg, sensor_msgs::image_encodings::TYPE_32FC1);
     }
     catch (cv_bridge::Exception &e)
     {
         ROS_ERROR("cv_bridge DEPTH exception: %s", e.what());
         return;
     }
-
     if (mm_to_meters)
-        cv_depth_ptr->image *= 0.001;
-
-    if(frame%kf_rate==0)
-    {
-        if (firstImageCb)
-        {
-        
-                //prevImage = cv_ptr->image;
-                if (cv_ptr->image.channels() == 3)
-                {
-                    cvtColor(cv_ptr->image, prevImage, cv::COLOR_BGR2GRAY);
-                }
-                else
-                {
-                    prevImage = cv_ptr->image;
-                }
-                prevDepthImage = cv_depth_ptr->image;
-                firstImageCb = false;
-            
-        }
-        else
-        {
-        
-                currImageRGB = cv_ptr->image;
-                if (cv_ptr->image.channels() == 3)
-                {
-                    cvtColor(cv_ptr->image, currImage, cv::COLOR_BGR2GRAY);
-                }
-                else
-                {
-                    currImage = cv_ptr->image;
-                }
-                currDepthImage = cv_depth_ptr->image;
-                if (!keyframe)
-                    keyframe = true;
-
-              
-        }
-    }
-
-    cv_ptr->header.stamp = ros::Time::now();
-    cv_ptr->header.seq = frame;
-    cv_depth_ptr->header.stamp = cv_ptr->header.stamp;
-    cv_depth_ptr->header.seq = cv_ptr->header.seq;
-    bool_msg.header.stamp = cv_ptr->header.stamp;
-    bool_msg.header.seq = cv_ptr->header.seq;
-    bool_msg.indicator.data = keyframe;
-    image_pub.publish(cv_ptr->toImageMsg());
-    depth_pub.publish(cv_depth_ptr->toImageMsg());
-    kf_pub.publish(bool_msg);
-    frame++;
+        data.depth->image *= 0.001;
+    
+    data.frame=intput_frame;
+    input_data.push(data);
+    
+    bool b=isKeyFrame(intput_frame);
+    
+    g2o_slam::boolStamped isKeyFrameMsg;
+    isKeyFrameMsg.indicator.data=b;
+    isKeyFrameMsg.dropPrev.data=false;
+    is_key_frame_data.push(isKeyFrameMsg);
+    
+    intput_frame++;
+    if(b)
+        key_frames_data.push(data);
 }
 
 
@@ -403,4 +529,58 @@ void g2o_slam3d::imdepthshow(cv::Mat map)
     applyColorMap(adjMap, falseColorsMap, cv::COLORMAP_AUTUMN);
     cv::imshow("Depth", falseColorsMap);
     cv::waitKey(0);
+}
+
+void g2o_slam3d::optimize()
+{
+    solve(10, true); //6 iterations in G2O and verbose
+    cout << " NUM OF POSE VERTICES " << vidx << endl;
+    cout << " NUM OF LANDMARK VERTICES " << oidx << endl;
+    
+    nav_msgs::Path opt_odom_path_msg;
+    nav_msgs::Odometry opt_pose_msg;
+    Eigen::Quaterniond opt_pose_q;
+    Eigen::Affine3d opt_pose;
+    Eigen::Vector3d opt_point;
+    
+    sensor_msgs::PointCloud pt_msg;
+    
+    for (unsigned int i = 0; i <=vidx; i++)
+    {
+        opt_pose = getPoseVertex(i);
+        opt_pose_msg.pose.pose.position.x = opt_pose.translation()(0);
+        opt_pose_msg.pose.pose.position.y = opt_pose.translation()(1);
+        opt_pose_msg.pose.pose.position.z = opt_pose.translation()(2);
+        opt_pose_q = Eigen::Quaterniond(opt_pose.linear());
+        opt_pose_msg.pose.pose.orientation.x = opt_pose_q.x();
+        opt_pose_msg.pose.pose.orientation.y = opt_pose_q.y();
+        opt_pose_msg.pose.pose.orientation.z = opt_pose_q.z();
+        opt_pose_msg.pose.pose.orientation.w = opt_pose_q.w();
+        opt_pose_msg.header.stamp = ros::Time::now();
+        opt_pose_msg.header.frame_id = "odom";
+        opt_odom_pub.publish(opt_pose_msg);
+
+        geometry_msgs::PoseStamped tmp_pose;
+        tmp_pose.pose = opt_pose_msg.pose.pose;
+        tmp_pose.header = opt_pose_msg.header;
+		opt_odom_path_msg.poses.push_back(tmp_pose);
+        //ros::Duration(0.25).sleep();
+    }
+    opt_odom_path_msg.header = opt_pose_msg.header;
+    opt_odom_path_pub.publish(opt_odom_path_msg);
+
+    for (unsigned int i = 0; i <=oidx; i++)
+    {
+        opt_point = getObservationVertex(i);
+        geometry_msgs::Point32 point;
+        point.x = opt_point(0);
+        point.y = opt_point(1);
+        point.z = opt_point(2);
+        pt_msg.points.push_back(point);
+        
+    }
+    pt_msg.header.stamp = ros::Time::now();
+    pt_msg.header.frame_id = "odom";
+    opt_pt_pub.publish(pt_msg);
+    ros::Duration(0.25).sleep();
 }

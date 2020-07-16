@@ -42,6 +42,8 @@
 #include <eigen3/Eigen/Dense>
 #include <g2o_slam/boolStamped.h>
 
+#include<g2o_slam/Queue.h>
+
 #include <fstream>
 #include <map>
 using namespace std;
@@ -49,62 +51,148 @@ using namespace g2o;
 using namespace Eigen;
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+
+struct ImageData
+{
+    cv_bridge::CvImagePtr depth;
+    cv_bridge::CvImagePtr rgb;
+    int frame;
+};
+
+
 class g2o_slam3d
 {
 private:
+    /// ROS nodehanlder
+    ros::NodeHandle nh;
+    //g2o optimizer
     g2o::SparseOptimizer optimizer;
     vector<g2o::EdgeSE3PointXYZ *> edges;
-
-
-    std::map<int,int> oidx_map, vidx_map;
-    g2o_slam::boolStamped bool_msg;
     ///image dimensions
     int height, width;
     /// camera distorsion
     double k1, k2, k3, t1, t2;
     /// camera calibration
     double cx, cy, fx, fy;
+    //Queues    
+    Queue<Eigen::Affine3d> odom_data;
+    Queue<ImageData> input_data;
+    Queue<ImageData> key_frames_data;    
+    Queue<g2o_slam::boolStamped> is_key_frame_data;
+    
+    //last frame send
+    int send_frame_num, processing_frame;
+    int intput_frame;
+    int kf_rate;
     /// Flags for first Image Callback, first Camera Info Callback, and for new image callback
+    std::map<int,int> oidx_map, vidx_map;
+    
+    int vidx, oidx, idx;
+    double min_depth, max_depth;
+    
+    //max frequency
+    double freq;
+    
+    /// Topics
+    std::string image_topic, depth_topic, cam_info_topic, odom_topic;
+    
+    bool mm_to_meters;
+    
+    Eigen::Affine3d T_B_P;
+    Eigen::Quaterniond q_B_P;
+    
+    /// Functions
+    bool doFindCorrespondingPoints(const cv::Mat &img1, 
+                                  const cv::Mat &img2,
+                                  vector<cv::KeyPoint> &kp1, 
+                                  vector<cv::KeyPoint> &kp2, 
+                                  vector<cv::Point2f> &points1, 
+                                  vector<cv::Point2f> &points2, 
+                                  vector<cv::DMatch> &matches);
+    void addMatchesToGraph(const vector<cv::DMatch> &corr,
+                                   Eigen::Affine3d &odom_pose,
+                                   const vector<cv::Point2f> &pts1,
+                                   const vector<cv::Point2f> &pts2,
+                                   const cv::Mat &prevDepthImage,
+                                   const cv::Mat &currDepthImage,
+                                   bool odom_inc);
+
+    bool isKeyFrame(int f) const
+    {
+        return f%kf_rate == 0 && processing_frame <= max_num_kfs;
+    }
+    
+    void imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &depth_msg);
+
+    
+    /// Threads
+    void outputPublishThread();
+    void processingThread();
+    
+    message_filters::Subscriber<sensor_msgs::Image> image_sub;
+    message_filters::Subscriber<sensor_msgs::Image> depth_sub;
+    ros::Subscriber odom_sub;
+    message_filters::Synchronizer<MySyncPolicy> *ts_sync;
+    
+    ros::Publisher kf_pub, image_pub, depth_pub, opt_odom_pub, opt_odom_path_pub, opt_pt_pub;
+    std::thread output_thread, processing_thread;
+    int max_num_kfs;
+    bool exit;
+    /*
+    
+    /// Flags for first Image Callback, first Camera Info Callback, and for new image callback
+    std::map<int,int> oidx_map, vidx_map;
+//     g2o_slam::boolStamped bool_msg;
+    
     bool firstImageCb, firstCameraInfoCb, img_inc;
     // Flags for  checking VO initialization
     bool  mm_to_meters, isFirst;
-    /// ROS nodehanlder
-    ros::NodeHandle nh;
+    
     //image_transport::ImageTransport it;
     //image_transport::Publisher image_pub;// depth_pub;
     ros::Publisher kf_pub, image_pub, depth_pub;
+
+    */
 public:
-    Eigen::Affine3d odom_pose, T_B_P;
-    Eigen::Quaterniond q_B_P;
-    int kf_rate;
-    int vidx, oidx, idx;
-    double min_depth, max_depth;
+    void optimize();
+    void run();    
+    g2o_slam3d(ros::NodeHandle nh_, double rate,int max_kfs_num);
+    
+    void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);    
+    
+  
+    
+
+
+
+//     Eigen::Affine3d odom_pose, T_B_P;
+//     Eigen::Quaterniond q_B_P;
+    
+
      /// current image frame
-    int frame;
-    g2o_slam3d(ros::NodeHandle nh_);
-    bool keyframe;
+//     int frame;
+//     g2o_slam3d(ros::NodeHandle nh_, double rate);
+//     bool keyframe;
     ///flag to indicate a new odometry measurement
-    bool odom_inc;
+//     bool odom_inc;
     ///placeholders for previous and current Grayscale/RGB/Depth Image
-    cv::Mat currImage, prevImage, currImageRGB, prevDepthImage, currDepthImage;
+//     cv::Mat currImage, prevImage, currImageRGB, prevDepthImage, currDepthImage;
     ///ROS RGB Image Subscriber
-    message_filters::Subscriber<sensor_msgs::Image> image_sub;
+    
     ///ROS DEPTH Image Subscriber
-    message_filters::Subscriber<sensor_msgs::Image> depth_sub;
+    
     /// ROS Synchronization for RGB and DEPTH msgs
-    message_filters::Synchronizer<MySyncPolicy> *ts_sync;
-    ros::Subscriber odom_sub;
+    
+    
     /// ROS image, depth and camera info topics
-    std::string image_topic, depth_topic, cam_info_topic, odom_topic;
-    void imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &depth_msg);
-    /** @fn void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);
-     * @brief Camera Info Callback
-     */
-    void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);
+//     std::string image_topic, depth_topic, cam_info_topic, odom_topic;
+//     void imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &depth_msg);
+//     /** @fn void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);
+//      * @brief Camera Info Callback
+//      */
+//     
 
     void addPoseVertex(Eigen::Affine3d pose, bool isFixed);
-    int findCorrespondingPoints(const cv::Mat &img1, const cv::Mat &img2, vector<cv::KeyPoint> &kp1, vector<cv::KeyPoint> &kp2, vector<cv::Point2f> &points1, vector<cv::Point2f> &points2, vector<cv::DMatch> &matches);
-
     void addObservationVertex(Eigen::Vector3d pos_, bool isMarginalized);
     void addPoseEdge(Eigen::Affine3d pose, Eigen::Matrix<double, 6, 6> cov, int vertexId);
     // edges == factors

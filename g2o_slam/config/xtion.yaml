@@ -12,5 +12,5 @@ odom_topic: "/multi_voxels/odom"
 
 #TF FROM EXTERNAL Odometry TO CAMERA FRAME
 T_B_P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1] 
-max_num_kfs: 100
+max_num_kfs: 10
 kf_rate: 15

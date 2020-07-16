@@ -39,24 +39,48 @@ int main(int argc, char *argv[])
 
     ros::init(argc, argv, "g2o_slam3d");
     ros::NodeHandle n;
-    g2o_slam3d bad(n);
+    
 
-    ros::Publisher opt_odom_pub = n.advertise<nav_msgs::Odometry>("vipGPU/odom", 1000);
-    ros::Publisher opt_pt_pub = n.advertise<sensor_msgs::PointCloud>("vipGPU/pointcloud", 100);
-    sensor_msgs::PointCloud pt_msg;
-    ros::Publisher opt_odom_path_pub = n.advertise<nav_msgs::Path>("vipGPU/odom/path", 100);
-    nav_msgs::Path opt_odom_path_msg;
-    nav_msgs::Odometry opt_pose_msg;
-    Eigen::Quaterniond opt_pose_q;
-    Eigen::Affine3d opt_pose;
-    Eigen::Vector3d opt_point;
+//     ros::Publisher opt_odom_pub = n.advertise<nav_msgs::Odometry>("vipGPU/odom", 1000);
+//     ros::Publisher opt_pt_pub = n.advertise<sensor_msgs::PointCloud>("vipGPU/pointcloud", 100);
+//     sensor_msgs::PointCloud pt_msg;
+//     ros::Publisher opt_odom_path_pub = n.advertise<nav_msgs::Path>("vipGPU/odom/path", 100);
+//     nav_msgs::Path opt_odom_path_msg;
+//     nav_msgs::Odometry opt_pose_msg;
+//     Eigen::Quaterniond opt_pose_q;
+//     Eigen::Affine3d opt_pose;
+//     Eigen::Vector3d opt_point;
 
     
     ros::NodeHandle n_p("~");
     double image_freq, odom_freq;
+    int max_num_kfs;
+    
     n_p.param<double>("image_freq", image_freq, 30.0);
     n_p.param<double>("odom_freq", odom_freq, 30.0);
+    n_p.param<int>("max_num_kfs", max_num_kfs, 10);
+    
     double freq = fmax(image_freq,odom_freq);
+    
+    g2o_slam3d bad(n,freq,max_num_kfs);
+    
+    ros::Duration(0.25).sleep();
+    // Run the spinner in a separate thread to prevent lockups
+    bad.run();
+    
+    //Done here
+    ROS_INFO("Quitting... ");
+//     delete gsp;
+    return 0;  
+    
+    
+    
+    
+    
+    /*
+    
+    
+    
     int keyframes = 0;
     int max_num_kfs;
     n_p.param<int>("max_num_kfs", max_num_kfs, 10);
@@ -90,17 +114,6 @@ int main(int argc, char *argv[])
 
 
         cout << "Found " << corr.size() << " matches" << endl;
-        // cv::Mat img_matched;
-        // cv::drawMatches( bad.prevImage, kpts1,
-        //                 bad.currImage, kpts2,
-        //                 corr, img_matched,
-        //                 cv::Scalar::all(-1),
-        //                 cv::Scalar::all(-1),
-        //                 std::vector<char>(),
-        //                 cv::DrawMatchesFlags::DEFAULT);
-
-        // cv::imshow("Knn Matches found", img_matched);
-        // cv::waitKey(0);
 
 
         //vertices == nodes
@@ -198,4 +211,5 @@ int main(int argc, char *argv[])
     
 
     return 0;
+    */
 }
