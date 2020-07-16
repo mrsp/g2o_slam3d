@@ -1,5 +1,6 @@
 #include <g2o_slam/g2o_slam3d.h>
 #include <sensor_msgs/PointCloud.h>
+#include <std_msgs/Int32.h>
 
 g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_,double rate,int max_kfs_num)
     :freq(rate),
@@ -22,6 +23,7 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_,double rate,int max_kfs_num)
     opt_odom_pub = nh.advertise<nav_msgs::Odometry>("vipGPU/odom", 1000);
     opt_pt_pub = nh.advertise<sensor_msgs::PointCloud>("vipGPU/pointcloud", 100);
     opt_odom_path_pub = nh.advertise<nav_msgs::Path>("vipGPU/odom/path", 100);
+    drop_kf_pub = nh.advertise<std_msgs::Int32>("vipGPU/drop_key_frame", 100);
     
     optimizer.setAlgorithm(solver);
 
@@ -123,18 +125,18 @@ void g2o_slam3d::outputPublishThread()
             g2o_slam::boolStamped bool_msg=is_key_frame_data.pop();
             
             img.rgb->header.stamp = ros::Time::now();            
-            img.rgb->header.seq = send_frame_num;
+            img.rgb->header.seq = img.frame;
             img.depth->header.stamp = img.rgb->header.stamp;
-            img.depth->header.seq = send_frame_num;
+            img.depth->header.seq = img.frame;
             
             bool_msg.header.stamp = img.rgb->header.stamp;
-            bool_msg.header.seq = send_frame_num;
+            bool_msg.header.seq = img.frame;
             
             image_pub.publish(img.rgb->toImageMsg());
             depth_pub.publish(img.depth->toImageMsg());
             kf_pub.publish(bool_msg);
             
-            send_frame_num++;
+            //send_frame_num++;
         }
         
         ros::spinOnce();
@@ -147,6 +149,7 @@ void g2o_slam3d::processingThread()
     //cv::Mat currImage, prevImage, currImageRGB, prevDepthImage, currDepthImage;
     
     static cv::Mat currImage, prevImage, currDepthImage, prevDepthImage;
+    static int prev_frame_id;
     bool firstTime=true;
     ros::Rate rate(4.0*freq);
     while (ros::ok() && !exit)
@@ -174,6 +177,7 @@ void g2o_slam3d::processingThread()
             }
             currDepthImage = img.depth->image.clone();
             firstTime=false;
+            prev_frame_id=img.frame;
         }
         else
         {
@@ -190,6 +194,10 @@ void g2o_slam3d::processingThread()
             if (doFindCorrespondingPoints(prevImage, currImage, kpts1, kpts2, pts1, pts2, corr) == false)
             {
                 cout << "no matches found" << endl;  
+                
+                std_msgs::Int32 msg;
+                msg.data=prev_frame_id;
+                drop_kf_pub.publish(msg);
             }
             else
             {
@@ -206,7 +214,8 @@ void g2o_slam3d::processingThread()
                 }
                     
                 addMatchesToGraph(corr,odom,pts1,pts2,prevDepthImage,currDepthImage,true);
-            }            
+            }
+            prev_frame_id=img.frame;
         }
         
       

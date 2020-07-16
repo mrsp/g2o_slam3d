@@ -134,7 +134,7 @@ private:
     ros::Subscriber odom_sub;
     message_filters::Synchronizer<MySyncPolicy> *ts_sync;
     
-    ros::Publisher kf_pub, image_pub, depth_pub, opt_odom_pub, opt_odom_path_pub, opt_pt_pub;
+    ros::Publisher kf_pub, image_pub, depth_pub, opt_odom_pub, opt_odom_path_pub, opt_pt_pub, drop_kf_pub;
     std::thread output_thread, processing_thread;
     int max_num_kfs;
     bool exit;
