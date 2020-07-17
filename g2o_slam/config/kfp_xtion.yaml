@@ -1,0 +1,16 @@
+image_topic: "/kfp/rgb/image_raw"
+depth_topic: "/kfp/depth/image_raw"
+cam_info_topic: "/kfp/camera_info"
+key_frame_topic: "/kfp/isKeyframe"
+
+image_freq: 30
+min_depth: 0.01
+max_depth: 4.0
+max_depth_difference: 0.08
+max_points_part: 0.09
+odom_freq: 30
+odom_topic: "/multi_voxels/odom"
+
+#TF FROM EXTERNAL Odometry TO CAMERA FRAME
+T_B_P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1] 
+max_num_kfs: 10

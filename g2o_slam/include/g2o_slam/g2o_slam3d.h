@@ -40,7 +40,9 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
 #include <eigen3/Eigen/Dense>
-#include <g2o_slam/boolStamped.h>
+// #include <g2o_slam/boolStamped.h>
+#include <key_frame_publisher/boolStamped.h>
+
 
 #include<g2o_slam/Queue.h>
 
@@ -50,7 +52,7 @@ using namespace std;
 using namespace g2o;
 using namespace Eigen;
 
-typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image, key_frame_publisher::boolStamped> MySyncPolicy;
 
 struct ImageData
 {
@@ -58,7 +60,6 @@ struct ImageData
     cv_bridge::CvImagePtr rgb;
     int frame;
 };
-
 
 class g2o_slam3d
 {
@@ -75,15 +76,11 @@ private:
     /// camera calibration
     double cx, cy, fx, fy;
     //Queues    
-    Queue<Eigen::Affine3d> odom_data;
-    Queue<ImageData> input_data;
-    Queue<ImageData> key_frames_data;    
-    Queue<g2o_slam::boolStamped> is_key_frame_data;
+    Queue<nav_msgs::Odometry> odom_data;
+    Queue<ImageData> image_data;        
     
     //last frame send
-    int send_frame_num, processing_frame;
-    int intput_frame;
-    int kf_rate;
+    int key_frame;    
     /// Flags for first Image Callback, first Camera Info Callback, and for new image callback
     std::map<int,int> oidx_map, vidx_map;
     
@@ -94,21 +91,22 @@ private:
     double freq;
     
     /// Topics
-    std::string image_topic, depth_topic, cam_info_topic, odom_topic;
-    
-    bool mm_to_meters;
+    std::string image_topic, depth_topic, cam_info_topic, odom_topic, key_frame_topic;
     
     Eigen::Affine3d T_B_P;
     Eigen::Quaterniond q_B_P;
     
     /// Functions
-    bool doFindCorrespondingPoints(const cv::Mat &img1, 
-                                  const cv::Mat &img2,
-                                  vector<cv::KeyPoint> &kp1, 
-                                  vector<cv::KeyPoint> &kp2, 
-                                  vector<cv::Point2f> &points1, 
-                                  vector<cv::Point2f> &points2, 
-                                  vector<cv::DMatch> &matches);
+    Eigen::Affine3d rosOdomToAffine(const nav_msgs::Odometry &odom) const;
+    
+    bool findCorrespondingPoints(const cv::Mat &img1, 
+                                 const cv::Mat &img2,
+                                 vector<cv::KeyPoint> &kp1, 
+                                 vector<cv::KeyPoint> &kp2, 
+                                 vector<cv::Point2f> &points1, 
+                                 vector<cv::Point2f> &points2, 
+                                 vector<cv::DMatch> &matches);
+    
     void addMatchesToGraph(const vector<cv::DMatch> &corr,
                                    Eigen::Affine3d &odom_pose,
                                    const vector<cv::Point2f> &pts1,
@@ -116,81 +114,33 @@ private:
                                    const cv::Mat &prevDepthImage,
                                    const cv::Mat &currDepthImage,
                                    bool odom_inc);
-
-    bool isKeyFrame(int f) const
-    {
-        return f%kf_rate == 0 && processing_frame <= max_num_kfs;
-    }
     
-    void imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &depth_msg);
+    void imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg,
+                      const sensor_msgs::ImageConstPtr &depth_msg,
+                      const key_frame_publisher::boolStampedConstPtr &keyFrame );
 
     
     /// Threads
-    void outputPublishThread();
     void processingThread();
     
     message_filters::Subscriber<sensor_msgs::Image> image_sub;
     message_filters::Subscriber<sensor_msgs::Image> depth_sub;
+    message_filters::Subscriber<key_frame_publisher::boolStamped> kf_sub;
+    
     ros::Subscriber odom_sub;
     message_filters::Synchronizer<MySyncPolicy> *ts_sync;
     
-    ros::Publisher kf_pub, image_pub, depth_pub, opt_odom_pub, opt_odom_path_pub, opt_pt_pub, drop_kf_pub;
+    ros::Publisher opt_odom_pub, opt_odom_path_pub, opt_pt_pub, drop_kf_pub;
     std::thread output_thread, processing_thread;
     int max_num_kfs;
     bool exit;
-    /*
-    
-    /// Flags for first Image Callback, first Camera Info Callback, and for new image callback
-    std::map<int,int> oidx_map, vidx_map;
-//     g2o_slam::boolStamped bool_msg;
-    
-    bool firstImageCb, firstCameraInfoCb, img_inc;
-    // Flags for  checking VO initialization
-    bool  mm_to_meters, isFirst;
-    
-    //image_transport::ImageTransport it;
-    //image_transport::Publisher image_pub;// depth_pub;
-    ros::Publisher kf_pub, image_pub, depth_pub;
-
-    */
+  
 public:
     void optimize();
     void run();    
     g2o_slam3d(ros::NodeHandle nh_, double rate,int max_kfs_num);
     
-    void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);    
-    
-  
-    
-
-
-
-//     Eigen::Affine3d odom_pose, T_B_P;
-//     Eigen::Quaterniond q_B_P;
-    
-
-     /// current image frame
-//     int frame;
-//     g2o_slam3d(ros::NodeHandle nh_, double rate);
-//     bool keyframe;
-    ///flag to indicate a new odometry measurement
-//     bool odom_inc;
-    ///placeholders for previous and current Grayscale/RGB/Depth Image
-//     cv::Mat currImage, prevImage, currImageRGB, prevDepthImage, currDepthImage;
-    ///ROS RGB Image Subscriber
-    
-    ///ROS DEPTH Image Subscriber
-    
-    /// ROS Synchronization for RGB and DEPTH msgs
-    
-    
-    /// ROS image, depth and camera info topics
-//     std::string image_topic, depth_topic, cam_info_topic, odom_topic;
-//     void imageDepthCb(const sensor_msgs::ImageConstPtr &img_msg, const sensor_msgs::ImageConstPtr &depth_msg);
-//     /** @fn void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);
-//      * @brief Camera Info Callback
-//      */
-//     
+    void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);        
 
     void addPoseVertex(Eigen::Affine3d pose, bool isFixed);
     void addObservationVertex(Eigen::Vector3d pos_, bool isMarginalized);

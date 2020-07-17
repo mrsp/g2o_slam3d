@@ -14,18 +14,18 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   roscpp
   sensor_msgs
-  message_generation
+#   message_generation
 )
+# 
+# add_message_files(
+#     FILES
+#     boolStamped.msg
+# )
 
-add_message_files(
-    FILES
-    boolStamped.msg
-)
-
-generate_messages(
-    DEPENDENCIES
-    std_msgs
-)
+# generate_messages(
+#     DEPENDENCIES
+#     std_msgs
+# )
 
 
 
@@ -73,8 +73,11 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS}  
-  ${CHOLMOD_INCLUDE_DIR} ${SUITESPARSE_INCLUDE_DIR}
+  ${EIGEN3_INCLUDE_DIRS} 
+  ${OpenCV_INCLUDE_DIRS}  
+  ${CHOLMOD_INCLUDE_DIR} 
+  ${SUITESPARSE_INCLUDE_DIR}
+  ${CATKIN_DEVEL_PREFIX}/${CATKIN_GLOBAL_INCLUDE_DESTINATION}
 )
 ## Declare a C++ executable
 add_executable(g2o_slam3d src/g2o_slam3d_driver.cpp src/g2o_slam3d.cpp)
@@ -85,4 +88,7 @@ target_link_libraries(g2o_slam3d
   ${EIGEN3_LIBRARIES}
   ${OpenCV_LIBS}
   ${G2O_LIBS}
-  ${CHOLMOD_LIBRARIES})
+  ${CHOLMOD_LIBRARIES}
+)
+
+add_dependencies(g2o_slam3d ${catkin_EXPORTED_TARGETS})
