@@ -11,5 +11,6 @@ max_points_part: 0.09
 odom_freq: 30
 odom_topic: "/multi_voxels/odom"
 
+max_num_kfs: 5
 #TF FROM EXTERNAL Odometry TO CAMERA FRAME
 T_B_P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1] 

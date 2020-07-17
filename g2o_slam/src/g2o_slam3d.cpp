@@ -6,7 +6,7 @@
 
 g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_,double rate,int max_kfs_num)
     :freq(rate),
-    max_num_kfs(max_kfs_num),
+//     max_num_kfs(max_kfs_num),
     exit(false)
 {
     nh = nh_;
@@ -38,6 +38,8 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_,double rate,int max_kfs_num)
     n_p.param<std::string>("odom_topic", odom_topic, "/kfusion/odom");
     n_p.param<double>("max_depth", max_depth, 6.0);
     n_p.param<double>("min_depth", min_depth, 0.01);
+    n_p.param<int>("max_num_kfs", max_num_kfs, 30);
+    
     std::vector<double> affine_list;
     n_p.getParam("T_B_P", affine_list);
     if(affine_list.size() == 16)
@@ -112,8 +114,9 @@ void g2o_slam3d::processingThread()
     //cv::Mat currImage, prevImage, currImageRGB, prevDepthImage, currDepthImage;
     
     static cv::Mat currImage, prevImage, currDepthImage, prevDepthImage;
-    static int prev_frame_id;
+    static int prev_frame_id;    
     bool firstTime=true;
+    
     ros::Rate rate(4.0*freq);
     
     while (ros::ok() && !exit)
@@ -153,12 +156,26 @@ void g2o_slam3d::processingThread()
             {
                 cout << "no matches found" << endl;  
                 
+                /*
                 cv::swap(currImage, prevImage);
                 cv::swap(currDepthImage, prevDepthImage);
+                */
                 
-                std_msgs::Int32 msg;
-                msg.data=img.frame;
-                drop_kf_pub.publish(msg);
+//                 std_msgs::Int32 msg;
+//                 msg.data=img.frame;
+//                 drop_kf_pub.publish(msg);
+                
+                nav_msgs::Odometry odom_msg;
+                do
+                {
+                    odom_msg=odom_data.pop();
+                }while(odom_msg.header.stamp < img.depth->header.stamp);
+                
+                Eigen::Affine3d odom_pose=rosOdomToAffine(odom_msg);
+                Eigen::Affine3d pose_0 = getPoseVertex(vidx);
+                Eigen::Affine3d rel_odom_pose = pose_0.inverse() * odom_pose;
+                addPoseVertex(odom_pose,false);
+                addPoseEdge(rel_odom_pose, Eigen::Matrix<double, 6, 6>::Identity(), vidx);
             }
             else
             {
@@ -174,7 +191,7 @@ void g2o_slam3d::processingThread()
         }
         
       
-        if(key_frame>=max_num_kfs)
+        if(key_frame > 0 && key_frame%max_num_kfs == 0)
         {
             optimize();
             //ros::Duration(0.25).sleep();
@@ -526,6 +543,7 @@ void g2o_slam3d::optimize()
         opt_odom_pub.publish(opt_pose_msg);
 
         geometry_msgs::PoseStamped tmp_pose;
+
         tmp_pose.pose = opt_pose_msg.pose.pose;
         tmp_pose.header = opt_pose_msg.header;
 		opt_odom_path_msg.poses.push_back(tmp_pose);
