@@ -3,6 +3,6 @@
   <!-- Call g2o_slam -->
   <node pkg="g2o_slam" type="g2o_slam3d" name="g2o_slam3d" respawn="false" output="screen" >
  	<!-- Load configurations from YAML file to parameter server -->
-   	 <rosparam file="$(find g2o_slam)/config/xtion.yaml" command="load"/> 
+   	 <rosparam file="$(find g2o_slam)/config/kfp_intel.yaml" command="load"/> 
   </node>
 </launch>
