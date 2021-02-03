@@ -5,4 +5,5 @@
     <!-- Load configurations from YAML file to parameter server -->
         <rosparam file="$(find g2o_slam)/config/loris.yaml" command="load"/> 
     </node>  
+   <node pkg = "rviz" type = "rviz" respawn = "false" name = "rviz" output = "screen" args ="-d $(find g2o_slam)/share/g2o_slam.rviz"> </node>
 </launch>
