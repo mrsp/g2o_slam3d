@@ -4,10 +4,8 @@
 
 #include <key_frame_publisher/boolStamped.h>
 
-g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_,double rate,int max_kfs_num)
-    :freq(rate),
-//     max_num_kfs(max_kfs_num),
-    exit(false)
+g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_)
+    : exit(false)
 {
     nh = nh_;
     key_frame = 0;
@@ -39,7 +37,15 @@ g2o_slam3d::g2o_slam3d(ros::NodeHandle nh_,double rate,int max_kfs_num)
     n_p.param<double>("max_depth", max_depth, 6.0);
     n_p.param<double>("min_depth", min_depth, 0.01);
     n_p.param<int>("max_num_kfs", max_num_kfs, 30);
+    n_p.param<int>("max_num_fts", max_num_fts, 5000);
+    n_p.param<double>("knn_match_ratio", knn_match_ratio, 0.8);
+    n_p.param<int>("min_num_matches", min_num_matches, 120);
+    n_p.param<int>("g2o_max_iter", g2o_max_iter, 10);
+    n_p.param<double>("g2o_ftsWeight", g2o_ftsWeight, 0.005);
+    n_p.param<double>("image_freq", image_freq, 30);
+    n_p.param<double>("odom_freq", odom_freq, 30.0);
     
+    freq = fmax(image_freq,odom_freq);
     std::vector<double> affine_list;
     n_p.getParam("T_B_P", affine_list);
     if(affine_list.size() == 16)
@@ -240,8 +246,9 @@ void g2o_slam3d::addMatchesToGraph(const vector<cv::DMatch> &corr,
         pos1 = pose_1 * rel_pos1;
     
         addObservationVertex(pos1,true);
-        addObservationEdges(rel_pos0, Eigen::Matrix3d::Identity()*0.005, vidx-1, oidx);
-        addObservationEdges(rel_pos1, Eigen::Matrix3d::Identity()*0.005, vidx, oidx);            
+        Eigen::Matrix3d RandomPose;
+        addObservationEdges(rel_pos0, Eigen::Matrix3d::Identity()*g2o_ftsWeight, vidx-1, oidx);
+        addObservationEdges(rel_pos1, Eigen::Matrix3d::Identity()*g2o_ftsWeight, vidx, oidx);            
     }
 }
 
@@ -272,7 +279,7 @@ bool g2o_slam3d::findCorrespondingPoints(const cv::Mat &img1,
                                         vector<cv::Point2f> &points2, 
                                         vector<cv::DMatch> &matches)
 {
-    cv::Ptr<cv::Feature2D> fdetector = cv::ORB::create(5000);
+    cv::Ptr<cv::Feature2D> fdetector = cv::ORB::create(max_num_fts);
 
     cv::Mat desp1, desp2;
     fdetector->detectAndCompute(img1, cv::Mat(), kp1, desp1);
@@ -280,7 +287,6 @@ bool g2o_slam3d::findCorrespondingPoints(const cv::Mat &img1,
 
     cv::Ptr<cv::DescriptorMatcher> matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
 
-    double knn_match_ratio = 0.8;
     vector<vector<cv::DMatch>> matches_knn;
     matcher->knnMatch(desp1, desp2, matches_knn, 2);
     for (size_t i = 0; i < matches_knn.size(); i++)
@@ -289,7 +295,7 @@ bool g2o_slam3d::findCorrespondingPoints(const cv::Mat &img1,
             matches.push_back(matches_knn[i][0]);
     }
 
-    if (matches.size() <= 120)
+    if (matches.size() <= min_num_matches) 
         return false;
 
     for (auto m : matches)
@@ -515,7 +521,7 @@ void g2o_slam3d::imdepthshow(cv::Mat map)
 
 void g2o_slam3d::optimize()
 {
-    solve(10, true); //6 iterations in G2O and verbose
+    solve(g2o_max_iter, true); //10 iterations in G2O and verbose
     cout << " NUM OF POSE VERTICES " << vidx << endl;
     cout << " NUM OF LANDMARK VERTICES " << oidx << endl;
     

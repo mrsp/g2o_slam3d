@@ -88,7 +88,7 @@ private:
     double min_depth, max_depth;
     
     //max frequency
-    double freq;
+    double freq, image_freq, odom_freq;
     
     /// Topics
     std::string image_topic, depth_topic, cam_info_topic, odom_topic, key_frame_topic;
@@ -134,11 +134,12 @@ private:
     std::thread output_thread, processing_thread;
     int max_num_kfs;
     bool exit;
-  
+    int  max_num_fts, min_num_matches, g2o_max_iter;
+    double knn_match_ratio , g2o_ftsWeight;
 public:
     void optimize();
     void run();    
-    g2o_slam3d(ros::NodeHandle nh_, double rate,int max_kfs_num);
+    g2o_slam3d(ros::NodeHandle nh_);
     
     void cameraInfoCb(const sensor_msgs::CameraInfoConstPtr &msg);        
 

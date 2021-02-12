@@ -3,14 +3,16 @@ depth_topic: "/kfp/depth/image_raw"
 cam_info_topic: "/kfp/camera_info"
 key_frame_topic: "/kfp/isKeyframe"
 
-image_freq: 30
-min_depth: 0.01
-max_depth: 6.0
-max_depth_difference: 0.08
-max_points_part: 0.09
-odom_freq: 30
-odom_topic: "/multi_voxels/odom"
-
-max_num_kfs: 5
+image_freq: 30 #rate of rgb image 
+min_depth: 0.1 #minimum depth sensed by the sensor
+max_depth: 8.0 #maximum depth sensed by the sensor
+odom_freq: 30  #rate of Kinect fusion odometry
+odom_topic: "/multi_voxels/odom" #Kinect fusion odometry topic
+max_num_kfs: 5 #Optimize when 5 new Keyframes are available
 #TF FROM EXTERNAL Odometry TO CAMERA FRAME
-T_B_P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1] 
+T_B_P: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0 ,1 ,0, 0, 0, 0, 1] #Relative Affine Transformation of Odometry measuremets to Camera frame
+max_num_fts: 500 #Maximum Number of Features to detect (if exist in the RGB Image)
+knn_match_ratio: 0.75 #KNN Distance ration for matching features between two keyframes
+min_num_matches: 65 #Minimum number of matches that must be detected in two keyframes in order for features to be added in pose graph 
+g2o_max_iter: 6 #Maximum iterations of pose graph optimization.
+g2o_ftsWeight: 0.0005 #Weight used for matches in pose graph optimization the greater the number the more important the information added.

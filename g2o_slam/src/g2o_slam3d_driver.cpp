@@ -40,16 +40,7 @@ int main(int argc, char *argv[])
     ros::init(argc, argv, "g2o_slam3d");
 
     ros::NodeHandle n_p;
-    double image_freq, odom_freq;
-    int max_num_kfs;
-    
-    n_p.param<double>("image_freq", image_freq, 30.0);
-    n_p.param<double>("odom_freq", odom_freq, 30.0);
-    n_p.param<int>("max_num_kfs", max_num_kfs, 10);
-    
-    double freq = fmax(image_freq,odom_freq);
-    
-    g2o_slam3d bad(n_p,freq,max_num_kfs);
+    g2o_slam3d bad(n_p);
     
     
     // Run the spinner in a separate thread to prevent lockups
